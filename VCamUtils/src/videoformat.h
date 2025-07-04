@@ -73,9 +73,11 @@ namespace AkVCam
             static FourCC fourccFromString(const std::string &fourccStr);
             static std::string stringFromFourcc(FourCC fourcc);
 #ifdef _WIN32
-#include <guiddef.h> // Define GUID
-            static AkVCam::FourCC guidToFourcc(const GUID &guid); // Explicitly AkVCam::FourCC
-            static GUID fourccToGuid(AkVCam::FourCC fourcc);   // Explicitly AkVCam::FourCC
+// Forward declare GUID struct to be used in function signatures within this header.
+// The actual definition will come from system headers included in .cpp files.
+struct _GUID; // GUID is often a typedef for struct _GUID
+            static AkVCam::FourCC guidToFourcc(const struct _GUID &guid);
+            static struct _GUID fourccToGuid(AkVCam::FourCC fourcc);
 #endif
 
         private:
