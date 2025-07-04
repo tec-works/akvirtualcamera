@@ -35,7 +35,14 @@ std::string AkVCam::timeStamp()
 {
     char ts[256];
     auto time = std::time(nullptr);
-    strftime(ts, 256, "%Y%m%d%H%M%S", std::localtime(&time));
+    std::tm tm_snapshot;
+#ifdef _WIN32
+    localtime_s(&tm_snapshot, &time);
+#else
+    std::tm* tm_ptr = std::localtime(&time);
+    if (tm_ptr) tm_snapshot = *tm_ptr; else { /* Handle error or init tm_snapshot */ }
+#endif
+    strftime(ts, 256, "%Y%m%d%H%M%S", &tm_snapshot);
 
     return std::string(ts);
 }

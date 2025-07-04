@@ -73,8 +73,9 @@ namespace AkVCam
             static FourCC fourccFromString(const std::string &fourccStr);
             static std::string stringFromFourcc(FourCC fourcc);
 #ifdef _WIN32
-            static FourCC guidToFourcc(const GUID &guid);
-            static GUID fourccToGuid(FourCC fourcc);
+#include <guiddef.h> // Define GUID
+            static AkVCam::FourCC guidToFourcc(const GUID &guid); // Explicitly AkVCam::FourCC
+            static GUID fourccToGuid(AkVCam::FourCC fourcc);   // Explicitly AkVCam::FourCC
 #endif
 
         private:
