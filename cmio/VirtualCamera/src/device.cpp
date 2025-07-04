@@ -200,8 +200,14 @@ void AkVCam::Device::serverStateChanged(IpcBridge::ServerState state)
         stream.second->serverStateChanged(state);
 }
 
-void AkVCam::Device::frameReady(const AkVCam::VideoFrame &frame)
+void AkVCam::Device::frameReady(const std::string &ipcDeviceId, const AkVCam::VideoFrame &frame)
 {
+    if (ipcDeviceId != this->m_deviceId) {
+        // AkLogDebug() << "Device " << this->m_deviceId << " ignoring frame for " << ipcDeviceId << std::endl;
+        return;
+    }
+
+    // AkLogDebug() << "Device " << this->m_deviceId << " received frame." << std::endl;
     for (auto &stream: this->m_streams)
         stream.second->frameReady(frame);
 }

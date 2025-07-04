@@ -48,6 +48,7 @@ namespace AkVCam
             bool valueBool(const std::string &key) const;
             int32_t valueInt32(const std::string &key) const;
             uint32_t valueUInt32(const std::string &key) const;
+            int32_t valueInt32OrDefault(const std::string &key, int32_t defaultValue) const;
             std::vector<std::string> valueList(const std::string &key,
                                                const std::string &separators) const;
             Fraction valueFrac(const std::string &key) const;

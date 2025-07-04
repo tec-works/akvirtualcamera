@@ -92,8 +92,6 @@ namespace AkVCam
             std::vector<std::string> m_broadcasting;
             MessageServer m_messageServer;
             MessageServer m_mainServer;
-            SharedMemory m_sharedMemory;
-            Mutex m_globalMutex;
             SC_HANDLE m_scManager {nullptr};
             SC_HANDLE m_assistantService {nullptr};
             SERVICE_NOTIFY m_notifyBuffer;
@@ -272,8 +270,8 @@ bool AkVCam::IpcBridge::registerPeer(bool isVCam)
         return false;
     }
 
-    this->d->m_sharedMemory.setName("Local\\" + portName + ".data");
-    this->d->m_globalMutex = Mutex(portName + ".mutex");
+    // this->d->m_sharedMemory.setName("Local\\" + portName + ".data"); // Removed global shared memory
+    // this->d->m_globalMutex = Mutex(portName + ".mutex"); // Removed global mutex
     this->d->m_portName = portName;
     AkLogInfo() << "Peer registered as " << portName << std::endl;
 
@@ -300,8 +298,8 @@ void AkVCam::IpcBridge::unregisterPeer()
     MessageServer::sendMessage("\\\\.\\pipe\\" DSHOW_PLUGIN_ASSISTANT_NAME,
                                &message);
     this->d->m_messageServer.stop();
-    this->d->m_sharedMemory.setName({});
-    this->d->m_globalMutex = {};
+    // this->d->m_sharedMemory.setName({}); // Removed global shared memory
+    // this->d->m_globalMutex = {}; // Removed global mutex
     this->d->m_portName.clear();
 }
 
@@ -672,15 +670,21 @@ bool AkVCam::IpcBridge::deviceStart(const std::string &deviceId,
         return false;
     }
 
-    this->d->m_sharedMemory.setName("Local\\" + this->d->m_portName + ".data");
-    this->d->m_globalMutex = Mutex(this->d->m_portName + ".mutex");
+    // Create per-device shared memory and mutex
+    std::string sharedMemoryName = "Local\\" + this->d->m_portName + "_" + deviceId + ".data";
+    std::string mutexName = this->d->m_portName + "_" + deviceId + ".mutex";
 
-    if (!this->d->m_sharedMemory.open(maxBufferSize,
-                                      SharedMemory::OpenModeWrite)) {
-        AkLogError() << "Can't open shared memory for writing." << std::endl;
+    DeviceSharedProperties deviceProps;
+    deviceProps.sharedMemory.setName(sharedMemoryName);
+    deviceProps.mutex = Mutex(mutexName);
 
+    AkLogInfo() << "Device " << deviceId << ": Attempting to open SHM: " << sharedMemoryName << " and Mutex: " << mutexName << " for writing." << std::endl;
+
+    if (!deviceProps.sharedMemory.open(maxBufferSize, SharedMemory::OpenModeWrite)) {
+        AkLogError() << "Can't open shared memory " << sharedMemoryName << " for writing for device " << deviceId << std::endl;
         return false;
     }
+    this->d->m_devices[deviceId] = deviceProps;
 
     Message message;
     message.messageId = AKVCAM_ASSISTANT_MSG_DEVICE_SETBROADCASTING;
@@ -694,9 +698,11 @@ bool AkVCam::IpcBridge::deviceStart(const std::string &deviceId,
            (std::min<size_t>)(this->d->m_portName.size(), MAX_STRING));
 
     if (!this->d->m_mainServer.sendMessage(&message)) {
-        AkLogError() << "Error sending message." << std::endl;
-        this->d->m_sharedMemory.close();
-
+        AkLogError() << "Error sending message for device " << deviceId << std::endl;
+        if (this->d->m_devices.count(deviceId)) {
+            this->d->m_devices[deviceId].sharedMemory.close();
+            this->d->m_devices.erase(deviceId);
+        }
         return false;
     }
 
@@ -717,14 +723,19 @@ void AkVCam::IpcBridge::deviceStop(const std::string &deviceId)
 
     Message message;
     message.messageId = AKVCAM_ASSISTANT_MSG_DEVICE_SETBROADCASTING;
-    message.dataSize = sizeof(MsgBroadcasting);
+    message.dataSize = sizeof(MsgBroadcasting); // No broadcaster info sent, assistant clears it
     auto data = messageData<MsgBroadcasting>(&message);
     memcpy(data->device,
            deviceId.c_str(),
            (std::min<size_t>)(deviceId.size(), MAX_STRING));
+    // data->broadcaster is intentionally left empty, assistant service will clear the broadcaster for this device.
 
     this->d->m_mainServer.sendMessage(&message);
-    this->d->m_sharedMemory.close();
+
+    if (this->d->m_devices.count(deviceId)) {
+        this->d->m_devices[deviceId].sharedMemory.close();
+        this->d->m_devices.erase(deviceId);
+    }
     this->d->m_broadcasting.erase(it);
 }
 
@@ -736,11 +747,19 @@ bool AkVCam::IpcBridge::write(const std::string &deviceId,
     if (frame.format().size() < 1)
         return false;
 
-    auto buffer =
-            reinterpret_cast<Frame *>(this->d->m_sharedMemory.lock(&this->d->m_globalMutex));
-
-    if (!buffer)
+    if (this->d->m_devices.count(deviceId) == 0) {
+        AkLogError() << "Device " << deviceId << " not broadcasting or not found." << std::endl;
         return false;
+    }
+
+    DeviceSharedProperties &deviceProps = this->d->m_devices[deviceId];
+    auto buffer =
+            reinterpret_cast<Frame *>(deviceProps.sharedMemory.lock(&deviceProps.mutex));
+
+    if (!buffer) {
+        AkLogError() << "Could not lock shared memory for device " << deviceId << std::endl;
+        return false;
+    }
 
     if (size_t(frame.format().width() * frame.format().height()) > maxFrameSize) {
         auto scaledFrame = frame.scaled(maxFrameSize);
@@ -761,7 +780,7 @@ bool AkVCam::IpcBridge::write(const std::string &deviceId,
                frame.data().size());
     }
 
-    this->d->m_sharedMemory.unlock(&this->d->m_globalMutex);
+    deviceProps.sharedMemory.unlock(&deviceProps.mutex);
 
     Message message;
     message.messageId = AKVCAM_ASSISTANT_MSG_FRAME_READY;
@@ -985,16 +1004,54 @@ void AkVCam::IpcBridgePrivate::updateDeviceSharedProperties(const std::string &d
                                                             const std::string &owner)
 {
     AkLogFunction();
+    std::string deviceSharedMemoryName = "Local\\" + owner + "_" + deviceId + ".data";
+    std::string deviceMutexName = owner + "_" + deviceId + ".mutex";
 
     if (owner.empty()) {
-        this->m_devices[deviceId] = {SharedMemory(), Mutex()};
+        // No one is broadcasting to this device, or the broadcaster stopped.
+        // Clean up if we were previously tracking it.
+        if (this->m_devices.count(deviceId)) {
+            AkLogInfo() << "Broadcaster for device " << deviceId << " is gone. Cleaning up resources." << std::endl;
+            this->m_devices[deviceId].sharedMemory.close();
+            // Mutex does not have an explicit close/release, it's managed by its lifetime.
+            this->m_devices.erase(deviceId);
+        }
     } else {
-        Mutex mutex(owner + ".mutex");
-        SharedMemory sharedMemory;
-        sharedMemory.setName("Local\\" + owner + ".data");
+        if (owner == this->m_portName) {
+            // This instance is the broadcaster. Shared memory should have been set up by deviceStart.
+            // We verify it here, though it's more of a sanity check.
+            if (this->m_devices.count(deviceId) == 0 || !this->m_devices[deviceId].sharedMemory.isOpen()) {
+                AkLogWarning() << "Device " << deviceId << " is owned by this instance (" << this->m_portName
+                               << ") but shared memory is not properly set up. This should have been handled by deviceStart." << std::endl;
+                // Attempt to re-initialize, though this indicates a potential logic flaw elsewhere.
+                DeviceSharedProperties props;
+                props.sharedMemory.setName(deviceSharedMemoryName);
+                props.mutex = Mutex(deviceMutexName);
+                if (props.sharedMemory.open(maxBufferSize, SharedMemory::OpenModeWrite)) {
+                    this->m_devices[deviceId] = props;
+                } else {
+                    AkLogError() << "Failed to open shared memory for writing for owned device " << deviceId << std::endl;
+                }
+            }
+        } else {
+            // Another instance is broadcasting. Set up for reading.
+            if (this->m_devices.count(deviceId) == 0 || !this->m_devices[deviceId].sharedMemory.isOpen()) {
+                AkLogInfo() << "Device " << deviceId << " is broadcast by " << owner
+                           << ". Setting up shared memory for reading." << std::endl;
+                DeviceSharedProperties props;
+                props.sharedMemory.setName(deviceSharedMemoryName); // Name uses the owner's port
+                props.mutex = Mutex(deviceMutexName); // Mutex name uses the owner's port
 
-        if (sharedMemory.open())
-            this->m_devices[deviceId] = {sharedMemory, mutex};
+                if (props.sharedMemory.open(maxBufferSize, SharedMemory::OpenModeRead)) {
+                    this->m_devices[deviceId] = props;
+                } else {
+                    AkLogError() << "Failed to open shared memory for reading for device " << deviceId
+                                << " broadcast by " << owner << std::endl;
+                    // Store empty props to avoid repeated attempts if open fails
+                    this->m_devices[deviceId] = {SharedMemory(), Mutex()};
+                }
+            }
+        }
     }
 }
 
@@ -1119,26 +1176,42 @@ void AkVCam::IpcBridgePrivate::frameReady(Message *message)
     AkLogFunction();
     auto data = messageData<MsgFrameReady>(message);
     std::string deviceId(data->device);
+    std::string broadcasterPort(data->port);
 
-    if (this->m_devices.count(deviceId) < 1) {
-        this->updateDeviceSharedProperties(deviceId, std::string(data->port));
-
-        return;
+    // Ensure shared memory is set up for reading if this instance is a listener.
+    if (this->m_devices.count(deviceId) == 0 || !this->m_devices[deviceId].sharedMemory.isOpen()) {
+        AkLogInfo() << "FrameReady for device " << deviceId << ": shared memory not yet open or device not tracked. Attempting to update." << std::endl;
+        this->updateDeviceSharedProperties(deviceId, broadcasterPort);
     }
 
-    auto frame =
-            reinterpret_cast<Frame *>(this->m_devices[deviceId]
-                                      .sharedMemory
-                                      .lock(&this->m_devices[deviceId].mutex));
+    // Check again if shared memory is now available and open.
+    if (this->m_devices.count(deviceId) > 0 && this->m_devices[deviceId].sharedMemory.isOpen()) {
+        DeviceSharedProperties &deviceProps = this->m_devices[deviceId];
+        auto frame_ptr =
+                reinterpret_cast<Frame *>(deviceProps.sharedMemory.lock(&deviceProps.mutex));
 
-    if (!frame)
-        return;
+        if (!frame_ptr) {
+            AkLogError() << "FrameReady for device " << deviceId << ": failed to lock shared memory." << std::endl;
+            // Potentially unlock if lock failed after partial success, though lock usually returns nullptr on full failure.
+            // deviceProps.sharedMemory.unlock(&deviceProps.mutex); // This might not be safe if frame_ptr is null
+            return;
+        }
 
-    VideoFormat videoFormat(frame->format, frame->width, frame->height);
-    VideoFrame videoFrame(videoFormat);
-    memcpy(videoFrame.data().data(), frame->data, frame->size);
-    this->m_devices[deviceId].sharedMemory.unlock(&this->m_devices[deviceId].mutex);
-    AKVCAM_EMIT(this->self, FrameReady, deviceId, videoFrame)
+        VideoFormat videoFormat(frame_ptr->format, frame_ptr->width, frame_ptr->height);
+        VideoFrame videoFrame(videoFormat);
+        // Ensure frame_ptr->size does not exceed videoFrame.data().size() to prevent buffer overflow
+        if (frame_ptr->size <= videoFrame.data().size()) {
+            memcpy(videoFrame.data().data(), frame_ptr->data, frame_ptr->size);
+        } else {
+            AkLogError() << "FrameReady for device " << deviceId << ": frame data size (" << frame_ptr->size
+                         << ") exceeds buffer size (" << videoFrame.data().size() << ")." << std::endl;
+        }
+
+        deviceProps.sharedMemory.unlock(&deviceProps.mutex);
+        AKVCAM_EMIT(this->self, FrameReady, deviceId, videoFrame)
+    } else {
+        AkLogError() << "FrameReady for device " << deviceId << ": shared memory is not available or not open after update attempt." << std::endl;
+    }
 }
 
 void AkVCam::IpcBridgePrivate::pictureUpdated(Message *message)

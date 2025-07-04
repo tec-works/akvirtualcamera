@@ -76,7 +76,7 @@ STDAPI DllGetClassObject(REFCLSID rclsid, REFIID riid, LPVOID *ppv)
 
     if (!IsEqualIID(riid, IID_IUnknown)
         && !IsEqualIID(riid, IID_IClassFactory)
-        && AkVCam::Preferences::cameraFromCLSID(riid) < 0)
+        && AkVCam::Preferences::cameraFromCLSID(rclsid) < 0) // Changed riid to rclsid
             return CLASS_E_CLASSNOTAVAILABLE;
 
     auto classFactory = new AkVCam::ClassFactory(rclsid);

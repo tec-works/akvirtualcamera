@@ -76,6 +76,11 @@ namespace AkVCam {
                          bool advanced);
     };
 
+#include <atomic> // Required for std::atomic
+
+namespace AkVCam {
+    // ... (existing using declarations) ...
+
     class CmdParserPrivate
     {
         public:
@@ -83,6 +88,11 @@ namespace AkVCam {
             IpcBridge m_ipcBridge;
             bool m_parseable {false};
             bool m_force {false};
+            std::map<std::string, std::string> m_virtualToPhysicalCameraMap; // virtualDeviceID -> physicalCameraID
+            std::map<std::string, std::vector<std::string>> m_physicalToVirtualCameraMap; // physicalCameraID -> list of virtualDeviceIDs
+            std::vector<std::thread> m_splittingThreads;
+            std::atomic<bool> m_stopSplittingThreads {false};
+
 
             static const std::map<ControlType, std::string> &typeStrMap();
             std::string basename(const std::string &path);
@@ -193,6 +203,14 @@ AkVCam::CmdParser::CmdParser()
     this->addFlags("",
                    {"--build-info"},
                    "Show build information.");
+    this->addFlags("",
+                   {"-s", "--source-camera"},
+                   "ID",
+                   "ID of the source camera for splitting.");
+    this->addFlags("",
+                   {"-n", "--num-virtual-cameras"},
+                   "COUNT",
+                   "Number of virtual cameras to create for splitting.");
     this->addCommand("devices",
                      "",
                      "List devices.",
@@ -364,8 +382,65 @@ AkVCam::CmdParser::CmdParser()
                    "Accept all risks and continue anyway.");
 }
 
+void AkVCam::CmdParserPrivate::startSplittingForPhysicalCamera(const std::string& physicalCameraId, const std::vector<std::string>& virtualDeviceIds)
+{
+    AkLogInfo() << "Starting splitting thread for physical camera: " << physicalCameraId
+                << " to " << virtualDeviceIds.size() << " virtual cameras." << std::endl;
+
+    m_splittingThreads.emplace_back([this, physicalCameraId, virtualDeviceIds]() {
+        // Placeholder for actual physical camera capture logic
+        // For now, let's simulate a frame source.
+        // This would involve opening the physicalCameraId using a platform-specific API.
+
+        VideoFormat dummyFormat(PixelFormatRGB24, 640, 480, {{30,1}});
+        VideoFrame frame(dummyFormat);
+        // Fill frame with some pattern or load from a file for testing
+        std::fill(frame.data().begin(), frame.data().end(), 128); // Grey frame
+        size_t frameCounter = 0;
+
+        while (!m_stopSplittingThreads) {
+            // Simulate frame capture
+            // Modify frame data slightly to see changes
+            for(size_t i = 0; i < frame.data().size(); ++i) {
+                if (i % (10 + (frameCounter % 10)) == 0) frame.data()[i] = (frame.data()[i] + 10) % 255;
+            }
+            frameCounter++;
+
+            for (const auto& virtualDeviceId : virtualDeviceIds) {
+                if (!m_ipcBridge.deviceStart(virtualDeviceId, dummyFormat) && frameCounter == 1) {
+                     // Attempt to start only once, or if it was stopped by something else
+                     // deviceStart might fail if already started, which is fine.
+                     // AkLogWarning() << "Could not start device " << virtualDeviceId << " for splitting. It might be already started or in use.";
+                }
+                if (!m_ipcBridge.write(virtualDeviceId, frame)) {
+                    // AkLogError() << "Failed to write frame to virtual camera " << virtualDeviceId << std::endl;
+                } else {
+                    // AkLogDebug() << "Frame written to " << virtualDeviceId << std::endl;
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(33)); // Approx 30 FPS
+        }
+
+        AkLogInfo() << "Splitting thread for physical camera " << physicalCameraId << " stopping." << std::endl;
+        // Placeholder for closing the physical camera
+        for (const auto& virtualDeviceId : virtualDeviceIds) {
+            m_ipcBridge.deviceStop(virtualDeviceId);
+        }
+    });
+}
+
+
 AkVCam::CmdParser::~CmdParser()
 {
+    AkLogInfo() << "CmdParser destructor called. Stopping splitting threads." << std::endl;
+    if (d) { // Ensure d is not null
+        d->m_stopSplittingThreads = true;
+        for (auto& thread : d->m_splittingThreads) {
+            if (thread.joinable()) {
+                thread.join();
+            }
+        }
+    }
     delete this->d;
 }
 
@@ -1307,12 +1382,40 @@ int AkVCam::CmdParserPrivate::loadSettings(const AkVCam::StringMap &flags,
     }
 
     this->loadGenerals(settings);
-    auto devices = this->m_ipcBridge.devices();
 
+    // Clear existing splitting setup before loading new settings
+    m_stopSplittingThreads = true;
+    for (auto& thread : m_splittingThreads) {
+        if (thread.joinable()) {
+            thread.join();
+        }
+    }
+    m_splittingThreads.clear();
+    m_virtualToPhysicalCameraMap.clear();
+    m_physicalToVirtualCameraMap.clear();
+    m_stopSplittingThreads = false; // Reset for new threads
+
+    auto devices = this->m_ipcBridge.devices();
     for (auto &device: devices)
         this->m_ipcBridge.removeDevice(device);
 
     this->createDevices(settings, this->readFormats(settings));
+    this->m_ipcBridge.updateDevices(); // Ensure devices are updated after loading settings
+
+    // Start splitting threads for configured cameras
+    if (!m_physicalToVirtualCameraMap.empty()) {
+        AkLogInfo() << "Found " << m_physicalToVirtualCameraMap.size()
+                    << " physical cameras configured for splitting." << std::endl;
+        for (const auto& pair : m_physicalToVirtualCameraMap) {
+            const std::string& physicalCamId = pair.first;
+            const std::vector<std::string>& virtualCamIds = pair.second;
+            if (!virtualCamIds.empty()) {
+                this->startSplittingForPhysicalCamera(physicalCamId, virtualCamIds);
+            }
+        }
+    } else {
+        AkLogInfo() << "No cameras configured for splitting in the settings file." << std::endl;
+    }
 
     return 0;
 }
@@ -2352,40 +2455,64 @@ void AkVCam::CmdParserPrivate::createDevices(Settings &settings,
     for (auto &device: devices)
         this->m_ipcBridge.removeDevice(device);
 
-    settings.beginGroup("Cameras");
-    size_t nCameras = settings.beginArray("cameras");
+    settings.beginGroup("VirtualCameras");
+    size_t nCameras = settings.valueUInt32("count"); // Read the count of virtual cameras
 
     for (size_t i = 0; i < nCameras; i++) {
-        settings.setArrayIndex(i);
+        std::string cameraGroup = "VirtualCamera" + std::to_string(i + 1);
+        settings.beginGroup(cameraGroup); // Begin group for each virtual camera
         this->createDevice(settings, availableFormats);
+        settings.endGroup(); // End group for the current virtual camera
     }
 
-    settings.endArray();
-    settings.endGroup();
-    this->m_ipcBridge.updateDevices();
+    settings.endGroup(); // End "VirtualCameras" group
 }
 
 void AkVCam::CmdParserPrivate::createDevice(Settings &settings,
                                             const VideoFormatMatrix &availableFormats)
 {
-    auto description = settings.value("description");
-
-    if (description.empty()) {
-        std::cerr << "Device description is empty" << std::endl;
-
+    // Settings are already scoped to the current VirtualCameraN group
+    bool enabled = settings.valueBool("enabled");
+    if (!enabled) {
+        AkLogInfo() << "Skipping disabled virtual camera." << std::endl;
         return;
     }
 
-    auto formats = this->readDeviceFormats(settings, availableFormats);
-
-    if (formats.empty()) {
-        std::cerr << "Can't read device formats" << std::endl;
-
+    auto description = settings.value("description");
+    if (description.empty()) {
+        std::cerr << "Device description is empty for a virtual camera." << std::endl;
         return;
     }
 
     auto deviceId = settings.value("id");
+    if (deviceId.empty()) {
+        std::cerr << "Device ID is empty for a virtual camera." << std::endl;
+        return;
+    }
+
+    bool enableSplitting = settings.valueBool("enable_splitting");
+    std::string sourceCameraId = settings.value("source_camera_id");
+
+    if (enableSplitting && !sourceCameraId.empty()) {
+        m_virtualToPhysicalCameraMap[deviceId] = sourceCameraId;
+        m_physicalToVirtualCameraMap[sourceCameraId].push_back(deviceId);
+        AkLogInfo() << "Virtual camera " << deviceId << " configured for splitting from source " << sourceCameraId
+                    << ". Current phys->virt map size for " << sourceCameraId << ": "
+                    << m_physicalToVirtualCameraMap[sourceCameraId].size() << std::endl;
+    }
+
+    auto formats = this->readDeviceFormats(settings, availableFormats);
+    if (formats.empty()) {
+        std::cerr << "Can't read device formats for " << deviceId << std::endl;
+        return;
+    }
+
     deviceId = this->m_ipcBridge.addDevice(description, deviceId);
+    if (deviceId.empty()) {
+        std::cerr << "Failed to add device: " << description << std::endl;
+        return;
+    }
+
     auto supportedFormats =
             this->m_ipcBridge.supportedPixelFormats(IpcBridge::StreamTypeOutput);
 
@@ -2394,8 +2521,12 @@ void AkVCam::CmdParserPrivate::createDevice(Settings &settings,
                             supportedFormats.end(),
                             format.fourcc());
 
-        if (it != supportedFormats.end())
+        if (it != supportedFormats.end()) {
             this->m_ipcBridge.addFormat(deviceId, format, -1);
+        } else {
+            AkLogWarning() << "Format " << VideoFormat::stringFromFourcc(format.fourcc())
+                           << " not supported for device " << deviceId << std::endl;
+        }
     }
 }
 

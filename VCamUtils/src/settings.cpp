@@ -288,6 +288,25 @@ uint32_t AkVCam::Settings::valueUInt32(const std::string &key) const
     return strtoul(value.c_str(), &p, 10);
 }
 
+int32_t AkVCam::Settings::valueInt32OrDefault(const std::string &key, int32_t defaultValue) const
+{
+    if (!contains(key))
+        return defaultValue;
+
+    auto value = this->value(key);
+
+    if (value.empty())
+        return defaultValue;
+
+    char *p = nullptr;
+    int32_t val = strtol(value.c_str(), &p, 10);
+
+    if (*p) // Conversion failed
+        return defaultValue;
+
+    return val;
+}
+
 std::vector<std::string> AkVCam::Settings::valueList(const std::string &key,
                                                      const std::string &separators) const
 {
