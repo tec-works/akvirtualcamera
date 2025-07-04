@@ -1,4 +1,4 @@
-# akvirtualcamera, virtual camera for Mac and Windows
+# akvirtualcamera, virtual camera for Mac and Windows 
 
 akvirtualcamera is virtual camera implemented as a DirectShow filter in Windows, and as a CoreMediaIO plugin in Mac.
 
