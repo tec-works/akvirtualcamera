@@ -357,6 +357,88 @@ std::string AkVCam::VideoFormat::stringFromFourcc(AkVCam::FourCC fourcc)
     return vf? vf->str: std::string();
 }
 
+#ifdef _WIN32
+#include <initguid.h> // For DEFINE_GUID
+
+// Define MEDIASUBTYPE guids if not already available from dshow.h or similar
+// This is a common practice to ensure they are defined.
+// Note: In a real project, these would typically come from including <dshow.h> and <uuids.h>
+// and this might cause redefinition errors if those headers are included elsewhere directly.
+// However, for this tool's environment, explicitly defining them might be safer if headers are not fully processed.
+
+// MEDIASUBTYPE_RGB32
+DEFINE_GUID(MEDIASUBTYPE_RGB32, 0x00000016, 0x0000, 0x0010, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71);
+// MEDIASUBTYPE_RGB24
+DEFINE_GUID(MEDIASUBTYPE_RGB24, 0xe436eb7d, 0x524f, 0x11ce, 0x9f, 0x53, 0x00, 0x20, 0xaf, 0x0b, 0xa7, 0x70);
+// MEDIASUBTYPE_RGB16 (usually RGB565)
+DEFINE_GUID(MEDIASUBTYPE_RGB565,0xe436eb7e, 0x524f, 0x11ce, 0x9f, 0x53, 0x00, 0x20, 0xaf, 0x0b, 0xa7, 0x70);
+// MEDIASUBTYPE_RGB15 (usually RGB555)
+DEFINE_GUID(MEDIASUBTYPE_RGB555,0xe436eb7c, 0x524f, 0x11ce, 0x9f, 0x53, 0x00, 0x20, 0xaf, 0x0b, 0xa7, 0x70);
+// MEDIASUBTYPE_YUY2
+DEFINE_GUID(MEDIASUBTYPE_YUY2, 0x32595559, 0x0000, 0x0010, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71);
+// MEDIASUBTYPE_UYVY
+DEFINE_GUID(MEDIASUBTYPE_UYVY, 0x59565955, 0x0000, 0x0010, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71);
+// MEDIASUBTYPE_NV12
+DEFINE_GUID(MEDIASUBTYPE_NV12, 0x3231564e, 0x0000, 0x0010, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71);
+// MEDIASUBTYPE_MJPG
+DEFINE_GUID(MEDIASUBTYPE_MJPG, 0x47504A4D, 0x0000, 0x0010, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71);
+
+
+AkVCam::FourCC AkVCam::VideoFormat::guidToFourcc(const GUID &guid) {
+    if (guid == MEDIASUBTYPE_RGB32) return PixelFormatRGB32;
+    if (guid == MEDIASUBTYPE_RGB24) return PixelFormatRGB24;
+    if (guid == MEDIASUBTYPE_RGB565) return PixelFormatRGB16; // Assuming RGB16 is RGB565
+    if (guid == MEDIASUBTYPE_RGB555) return PixelFormatRGB15; // Assuming RGB15 is RGB555
+    if (guid == MEDIASUBTYPE_YUY2) return PixelFormatYUY2;
+    if (guid == MEDIASUBTYPE_UYVY) return PixelFormatUYVY;
+    if (guid == MEDIASUBTYPE_NV12) return PixelFormatNV12;
+    if (guid == MEDIASUBTYPE_MJPG) return AkVCam::FourCC_MJPG; // 'MJPG'
+
+    // For direct FOURCC GUIDs like 'YUY2'
+    if (guid.Data1 <= 0xFFFF && guid.Data2 == 0x0000 && guid.Data3 == 0x0010 &&
+        guid.Data4[0] == 0x80 && guid.Data4[1] == 0x00 && guid.Data4[2] == 0x00 &&
+        guid.Data4[3] == 0xaa && guid.Data4[4] == 0x00 && guid.Data4[5] == 0x38 &&
+        guid.Data4[6] == 0x9b && guid.Data4[7] == 0x71) {
+        return guid.Data1;
+    }
+    // A common way to represent FOURCCs in GUIDs is to have the FOURCC in Data1,
+    // and the rest of the GUID fields be {0x0000, 0x0010, {0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71}}.
+    // This is essentially what MEDIASUBTYPE_YUY2, MEDIASUBTYPE_UYVY, etc. are.
+    // Check if Data1 contains a valid ASCII representation if it's a FourCC.
+    // This is a bit heuristic.
+    // char c1 = (guid.Data1 >> 0) & 0xFF;
+    // char c2 = (guid.Data1 >> 8) & 0xFF;
+    // char c3 = (guid.Data1 >> 16) & 0xFF;
+    // char c4 = (guid.Data1 >> 24) & 0xFF;
+    // if (isprint(c1) && isprint(c2) && isprint(c3) && isprint(c4)) {
+    //     return guid.Data1;
+    // }
+
+    AkLogWarning() << "guidToFourcc: Unknown GUID type." << std::endl;
+    return 0; // Unknown
+}
+
+GUID AkVCam::VideoFormat::fourccToGuid(FourCC fourcc) {
+    switch (fourcc) {
+        case PixelFormatRGB32: return MEDIASUBTYPE_RGB32;
+        case PixelFormatRGB24: return MEDIASUBTYPE_RGB24;
+        case PixelFormatRGB16: return MEDIASUBTYPE_RGB565; // Assuming RGB16 is RGB565
+        case PixelFormatRGB15: return MEDIASUBTYPE_RGB555; // Assuming RGB15 is RGB555
+        case PixelFormatYUY2:  return MEDIASUBTYPE_YUY2;
+        case PixelFormatUYVY:  return MEDIASUBTYPE_UYVY;
+        case PixelFormatNV12:  return MEDIASUBTYPE_NV12;
+        case AkVCam::FourCC_MJPG: return MEDIASUBTYPE_MJPG; // 'MJPG'
+        default:
+            // For other FOURCCs, construct the GUID directly if it's a standard representation
+            // This is common for many FOURCCs like I420, YV12 etc.
+            // The Data1 field holds the FOURCC.
+            GUID guid = {fourcc, 0x0000, 0x0010, {0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71}};
+            return guid;
+    }
+}
+#endif
+
+
 AkVCam::VideoFormatPrivate::VideoFormatPrivate(FourCC fourcc,
                                                int width,
                                                int height,

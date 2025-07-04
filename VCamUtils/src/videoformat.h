@@ -72,6 +72,10 @@ namespace AkVCam
                                      int align=32);
             static FourCC fourccFromString(const std::string &fourccStr);
             static std::string stringFromFourcc(FourCC fourcc);
+#ifdef _WIN32
+            static FourCC guidToFourcc(const GUID &guid);
+            static GUID fourccToGuid(FourCC fourcc);
+#endif
 
         private:
             VideoFormatPrivate *d;
