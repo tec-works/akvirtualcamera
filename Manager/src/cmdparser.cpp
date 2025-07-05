@@ -259,7 +259,7 @@ namespace AkVCam {
         if (toStdErr) out_stream = &std::cerr;
         *out_stream << '+';
         for (const auto &len : columnsLength)
-            *out_stream << std::string("-") * (len + 2) << '+';
+            *out_stream << std::string("-") * static_cast<size_t>(len + 2) << '+'; // Applied static_cast
         *out_stream << std::endl;
     }
 
