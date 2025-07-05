@@ -41,16 +41,27 @@ The `AkVCamManager` executable (or its platform-specific equivalent, e.g., `AkVC
 
 ### Listing Available Cameras
 
-To see a list of available physical cameras and currently configured virtual cameras, you can run:
+To see a list of available physical cameras and currently configured virtual cameras, you can run the `devices` command:
 
 ```bash
 ./AkVCamManager devices
 ```
-Or, simply running the manager without any commands will typically list physical cameras:
+
+If you only need information about physical cameras, you can use the `list-physical-cameras` command:
+
+```bash
+./AkVCamManager list-physical-cameras
+```
+This command provides a list of all detected physical cameras, including their friendly name, unique device ID, and description. The output is presented in a table format. You can also get this output in a parseable tab-separated format using the `-p` flag:
+```bash
+./AkVCamManager list-physical-cameras -p
+```
+
+Simply running the manager without any commands will also typically list physical cameras by default:
 ```bash
 ./AkVCamManager
 ```
-This is useful for finding the `deviceId` of your physical camera, which you'll need for configuring splitting.
+The `deviceId` obtained from these commands is crucial for configuring webcam splitting or other specific device operations.
 
 ### Webcam Splitting: One Physical Camera to Multiple Virtual Cameras
 
