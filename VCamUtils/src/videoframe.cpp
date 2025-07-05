@@ -333,6 +333,15 @@ AkVCam::VideoFrame::~VideoFrame()
     delete this->d;
 }
 
+bool AkVCam::VideoFrame::isValid() const
+{
+    if (!this->d) return false; // Should not happen if constructor succeeded
+    // A frame is valid if its format is valid and its data size matches the format's expected size.
+    // Or, at least, if format is valid and data is not empty if constructed without specific size.
+    // VideoFormat::isValid() checks format properties including size > 0.
+    return this->d->m_format.isValid() && !this->d->m_data.empty() && this->d->m_data.size() == this->d->m_format.size();
+}
+
 // http://www.dragonwins.com/domains/getteched/bmp/bmpfileformat.htm
 bool AkVCam::VideoFrame::load(const std::string &fileName)
 {
