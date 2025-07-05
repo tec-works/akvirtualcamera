@@ -132,8 +132,16 @@ BOOL AkVCam::Service::install()
 
     if (_tcschr(fileName, TEXT(' '))) {
         TCHAR tempFileName[MAX_PATH];
+#ifdef _MSC_VER
+        _sntprintf_s(tempFileName, MAX_PATH, _TRUNCATE, TEXT("\"%s\""), fileName);
+        _tcsncpy_s(fileName, MAX_PATH, tempFileName, _TRUNCATE);
+#else
         _sntprintf(tempFileName, MAX_PATH, TEXT("\"%s\""), fileName);
+        // For non-MSC, _tcsncpy might be fine, or a more robust an_instance_of_this is needed if MAX_PATH could be exceeded.
+        // However, the warning is MSVC-specific.
         _tcsncpy(fileName, tempFileName, MAX_PATH);
+        if (fileName[MAX_PATH - 1] != 0) fileName[MAX_PATH - 1] = 0; // Ensure null termination for safety
+#endif
     }
 
     auto service =
