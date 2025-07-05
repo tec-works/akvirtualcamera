@@ -1,3 +1,4 @@
+#define NOMINMAX // Prevent min/max macros from Windows.h
 /* akvirtualcamera, virtual camera for Mac and Windows.
  * Copyright (C) 2020  Gonzalo Exequiel Pedone
  *
