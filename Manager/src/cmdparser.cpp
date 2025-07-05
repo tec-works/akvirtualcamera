@@ -41,6 +41,10 @@
 #include "VCamUtils/src/videoformat.h"
 #include "VCamUtils/src/videoframe.h"
 #include "VCamUtils/src/logger.h"
+#include "icapturedevice.h" // Added
+#include <atomic>           // Added
+#include <mutex>            // Added
+
 
 #define COMMONS_PROJECT_COMMIT_URL "https://github.com/webcamoid/akvirtualcamera/commit"
 
@@ -76,7 +80,8 @@ namespace AkVCam {
                          bool advanced);
     };
 
-#include <atomic> // Required for std::atomic
+// std::atomic include should be at the top of the file with other standard headers.
+// #include <atomic> // Moved to top
 
 namespace AkVCam {
     // ... (existing using declarations) ...
@@ -88,14 +93,14 @@ namespace AkVCam {
             IpcBridge m_ipcBridge;
             bool m_parseable {false};
             bool m_force {false};
-#include "icapturedevice.h" // Include the new interface
-#include <mutex> // For std::mutex
+// #include "icapturedevice.h" // Should be at the top of the file
+// #include <mutex> // Should be at the top of the file
 
 // ... (CmdParserPrivate existing members) ...
             std::map<std::string, std::string> m_virtualToPhysicalCameraMap; // virtualDeviceID -> physicalCameraID
             std::map<std::string, std::vector<std::string>> m_physicalToVirtualCameraMap; // physicalCameraID -> list of virtualDeviceIDs
             std::vector<std::thread> m_splittingThreads;
-            std::atomic<bool> m_stopSplittingThreads {false};
+            std::atomic<bool> m_stopSplittingThreads {false}; // Ensure std::atomic is used
 
             // For physical camera capture
             std::map<std::string, std::unique_ptr<ICaptureDevice>> m_physicalCaptureDevices;
