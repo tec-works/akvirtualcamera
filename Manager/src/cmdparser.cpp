@@ -439,24 +439,26 @@ namespace AkVCam {
                 {
                     std::lock_guard<std::mutex> lock(m_physicalFrameMutexes[physicalCameraId]);
                     auto it = m_latestPhysicalFrames.find(physicalCameraId);
-                    // Corrected check using find() and then isValid() on the VideoFrame object
-                    if (it != m_latestPhysicalFrames.end() && it->second.isValid())
-                    {
+                    if (it != m_latestPhysicalFrames.end() && it->second.isValid()) { // Ensure frame object itself is valid
                         currentFrame = it->second;
+                        // Ensure the format associated with the physical camera is valid,
+                        // or fallback to the current frame's format if that's also valid.
                         if (m_physicalCameraFormats.count(physicalCameraId) && m_physicalCameraFormats[physicalCameraId].isValid()) {
-                           frameFormat = m_physicalCameraFormats[physicalCameraId];
-                           frameValid = true;
+                            frameFormat = m_physicalCameraFormats[physicalCameraId];
+                            frameValid = true;
                         } else {
-                           frameFormat = currentFrame.format();
-                           if (frameFormat.isValid()) {
-                               frameValid = true;
-                               m_physicalCameraFormats[physicalCameraId] = frameFormat;
-                           } else {
-                               AkLogWarning() << "Invalid format for frame from " << physicalCameraId << ". Skipping write." << std::endl;
-                               frameValid = false;
-                           }
+                            frameFormat = currentFrame.format(); // Get format from the current valid frame
+                            if (frameFormat.isValid()) {
+                                m_physicalCameraFormats[physicalCameraId] = frameFormat; // Update stored format
+                                frameValid = true;
+                            } else {
+                                AkLogWarning() << "Frame from " << physicalCameraId << " is valid, but its format is not. Skipping write." << std::endl;
+                                frameValid = false;
+                            }
                         }
                     } else {
+                        // This case means either the physicalCameraId was not in m_latestPhysicalFrames,
+                        // or the VideoFrame object itself was invalid (e.g. default constructed, cleared)
                         frameValid = false;
                     }
                 }
