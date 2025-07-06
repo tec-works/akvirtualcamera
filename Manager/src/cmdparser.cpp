@@ -508,12 +508,6 @@ namespace AkVCam {
         return 0;
     }
 
-    // Definitions for other CmdParserPrivate methods would go here...
-    // (e.g. stream, listenEvents, showControls, readControl, writeControls, picture, setPicture,
-    // logLevel, setLogLevel, showClients, dumpInfo, hacks, hackInfo, hack, loadGenerals,
-    // readFormats, readFormat, matrixCombine, matrixCombineP, createDevices, createDevice, readDeviceFormats)
-    // These are assumed to be correct from the previous full overwrite.
-
     int CmdParserPrivate::listPhysicalCamerasCommand(const StringMap &flags_map, const StringVector &args) {
         UNUSED(args); // No arguments expected for this command
 
@@ -568,6 +562,12 @@ namespace AkVCam {
 
         return 0;
     }
+
+    // Definitions for other CmdParserPrivate methods would go here...
+    // (e.g. stream, listenEvents, showControls, readControl, writeControls, picture, setPicture,
+    // logLevel, setLogLevel, showClients, dumpInfo, hacks, hackInfo, hack, loadGenerals,
+    // readFormats, readFormat, matrixCombine, matrixCombineP, createDevices, createDevice, readDeviceFormats)
+    // These are assumed to be correct from the previous full overwrite.
 
     // CmdParser method implementations
     #define AKVCAM_BIND_FUNC(member_ptr) \
