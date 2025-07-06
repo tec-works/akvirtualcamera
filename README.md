@@ -86,7 +86,7 @@ In your `config.ini` file, you define your virtual cameras under the `[Cameras]`
     *   `cameras/X/formats = <format_indices>` (e.g., `1` or `1,2` referencing formats defined in `[Formats]`)
     *   `cameras/X/source_camera_id = <your_physical_camera_id>`
 
-    Set `<your_physical_camera_id>` to the actual ID of the physical webcam you want to split. You can find this ID using the `./AkVCamManager devices` command or by running `./AkVCamManager` without arguments. All virtual cameras that should display the feed from this physical camera must use the *same* `source_camera_id`.
+    Set `<your_physical_camera_id>` to the actual ID of the physical webcam you want to split. You can find this ID using the `./AkVCamManager devices` or `./AkVCamManager list-physical-cameras` command, or by running `./AkVCamManager` without arguments. All virtual cameras that should display the feed from this physical camera must use the *same* `source_camera_id`.
 
 **Example `config.ini` for splitting one physical camera to two virtual cameras:**
 

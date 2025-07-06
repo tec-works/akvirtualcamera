@@ -121,7 +121,6 @@ namespace AkVCam {
             int defaultHandler(const StringMap &flags, const StringVector &args);
             int showHelp(const StringMap &flags, const StringVector &args);
             int showDevices(const StringMap &flags, const StringVector &args);
-            int listPhysicalCamerasCommand(const StringMap &flags, const StringVector &args);
             int addDevice(const StringMap &flags, const StringVector &args);
             int removeDevice(const StringMap &flags, const StringVector &args);
             int removeDevices(const StringMap &flags, const StringVector &args);
@@ -439,26 +438,24 @@ namespace AkVCam {
                 {
                     std::lock_guard<std::mutex> lock(m_physicalFrameMutexes[physicalCameraId]);
                     auto it = m_latestPhysicalFrames.find(physicalCameraId);
-                    if (it != m_latestPhysicalFrames.end() && it->second.isValid()) { // Ensure frame object itself is valid
+                    // Corrected check using find() and then isValid() on the VideoFrame object
+                    if (it != m_latestPhysicalFrames.end() && it->second.isValid())
+                    {
                         currentFrame = it->second;
-                        // Ensure the format associated with the physical camera is valid,
-                        // or fallback to the current frame's format if that's also valid.
                         if (m_physicalCameraFormats.count(physicalCameraId) && m_physicalCameraFormats[physicalCameraId].isValid()) {
-                            frameFormat = m_physicalCameraFormats[physicalCameraId];
-                            frameValid = true;
+                           frameFormat = m_physicalCameraFormats[physicalCameraId];
+                           frameValid = true;
                         } else {
-                            frameFormat = currentFrame.format(); // Get format from the current valid frame
-                            if (frameFormat.isValid()) {
-                                m_physicalCameraFormats[physicalCameraId] = frameFormat; // Update stored format
-                                frameValid = true;
-                            } else {
-                                AkLogWarning() << "Frame from " << physicalCameraId << " is valid, but its format is not. Skipping write." << std::endl;
-                                frameValid = false;
-                            }
+                           frameFormat = currentFrame.format();
+                           if (frameFormat.isValid()) {
+                               frameValid = true;
+                               m_physicalCameraFormats[physicalCameraId] = frameFormat;
+                           } else {
+                               AkLogWarning() << "Invalid format for frame from " << physicalCameraId << ". Skipping write." << std::endl;
+                               frameValid = false;
+                           }
                         }
                     } else {
-                        // This case means either the physicalCameraId was not in m_latestPhysicalFrames,
-                        // or the VideoFrame object itself was invalid (e.g. default constructed, cleared)
                         frameValid = false;
                     }
                 }
@@ -508,61 +505,6 @@ namespace AkVCam {
         return 0;
     }
 
-    int CmdParserPrivate::listPhysicalCamerasCommand(const StringMap &flags_map, const StringVector &args) {
-        UNUSED(args); // No arguments expected for this command
-
-        bool parseable = this->containsFlag(flags_map, "list-physical-cameras", "-p") || this->containsFlag(flags_map, "", "-p");
-
-        auto captureDevice = createPlatformCaptureDevice();
-        if (!captureDevice) {
-            if (parseable) {
-                std::cerr << "error\tFailed to create platform capture device." << std::endl;
-            } else {
-                AkLogError() << "Failed to create platform capture device for enumeration." << std::endl;
-            }
-            return -1; // Or a more specific error code
-        }
-
-        std::vector<PhysicalCameraInfo> infos = captureDevice->enumerateDevices();
-
-        if (infos.empty()) {
-            if (parseable) {
-                // Output nothing or a specific message indicating no devices, TBD by parseable format spec
-                 std::cout << "" << std::endl; // Or specific "no devices" message
-            } else {
-                AkLogInfo() << "No physical cameras found or enumeration not supported by the capture backend." << std::endl;
-            }
-            return 0;
-        }
-
-        if (parseable) {
-            // Simple tab-separated output: ID\tName\tDescription
-            // Adding a header row for clarity, though typically parseable formats might omit it
-            // or have it as an option. For now, including it.
-            std::cout << "ID\tFriendlyName\tDescription" << std::endl;
-            for (const auto& camInfo : infos) {
-                std::cout << camInfo.deviceId << "\t"
-                          << camInfo.friendlyName << "\t"
-                          << camInfo.description << std::endl;
-            }
-        } else {
-            AkLogInfo() << "Available Physical Cameras:" << std::endl;
-            StringVector table;
-            table.push_back("ID");
-            table.push_back("Friendly Name");
-            table.push_back("Description");
-
-            for (const auto& camInfo : infos) {
-                table.push_back(camInfo.deviceId);
-                table.push_back(camInfo.friendlyName);
-                table.push_back(camInfo.description);
-            }
-            this->drawTable(table, 3); // 3 columns
-        }
-
-        return 0;
-    }
-
     // Definitions for other CmdParserPrivate methods would go here...
     // (e.g. stream, listenEvents, showControls, readControl, writeControls, picture, setPicture,
     // logLevel, setLogLevel, showClients, dumpInfo, hacks, hackInfo, hack, loadGenerals,
@@ -590,7 +532,6 @@ namespace AkVCam {
         this->addFlags("", {"-s", "--source-camera"}, "ID", "ID of the source camera for splitting.");
         this->addFlags("", {"-n", "--num-virtual-cameras"}, "COUNT", "Number of virtual cameras to create for splitting.");
         this->addCommand("devices", "", "List devices.", AKVCAM_BIND_FUNC(&CmdParserPrivate::showDevices));
-        this->addCommand("list-physical-cameras", "", "List available physical cameras with their IDs and descriptions.", AKVCAM_BIND_FUNC(&CmdParserPrivate::listPhysicalCamerasCommand));
         this->addCommand("add-device", "DESCRIPTION", "Add a new device.", AKVCAM_BIND_FUNC(&CmdParserPrivate::addDevice));
         this->addFlags("add-device", {"-i", "--id"}, "DEVICEID", "Create device as DEVICEID.");
         this->addCommand("remove-device", "DEVICE", "Remove a device.", AKVCAM_BIND_FUNC(&CmdParserPrivate::removeDevice));
