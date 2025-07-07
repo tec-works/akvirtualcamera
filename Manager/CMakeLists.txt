@@ -39,7 +39,9 @@ set(MANAGER_SOURCES
 
 # Conditionally add platform-specific capture device implementations
 if(WIN32)
-    list(APPEND MANAGER_SOURCES src/windows_capturedevice.cpp)
+    if(MSVC)
+        list(APPEND MANAGER_SOURCES src/windows_capturedevice.cpp)
+    endif()
 elseif(APPLE)
     list(APPEND MANAGER_SOURCES src/macos_capturedevice.mm)
 # Add other platform checks like elseif(UNIX AND NOT APPLE) if you have a Linux specific file
