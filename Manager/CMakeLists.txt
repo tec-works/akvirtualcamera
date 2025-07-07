@@ -31,16 +31,32 @@ elseif (WIN32)
     set(INSTALLPATH ${WIN_TARGET_ARCH})
 endif ()
 
-add_executable(Manager
-               src/cmdparser.h
-               src/main.cpp
-               src/cmdparser.cpp)
+# List of source files for the Manager executable
+set(MANAGER_SOURCES
+    src/main.cpp
+    src/cmdparser.cpp
+)
+
+# Conditionally add platform-specific capture device implementations
+if(WIN32)
+    list(APPEND MANAGER_SOURCES src/windows_capturedevice.cpp)
+elseif(APPLE)
+    list(APPEND MANAGER_SOURCES src/macos_capturedevice.mm)
+# Add other platform checks like elseif(UNIX AND NOT APPLE) if you have a Linux specific file
+# For example: list(APPEND MANAGER_SOURCES src/linux_capturedevice.cpp)
+endif()
+
+add_executable(Manager ${MANAGER_SOURCES})
+
 set_target_properties(Manager PROPERTIES
                       OUTPUT_NAME AkVCamManager
                       RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build/${INSTALLPATH})
+
 add_dependencies(Manager VCamIPC PlatformUtils VCamUtils)
+
 target_include_directories(Manager
                            PRIVATE ..)
+
 target_link_libraries(Manager
                       VCamIPC
                       PlatformUtils
