@@ -8,6 +8,7 @@
 #include <string>
 #include <atlbase.h> // For CComPtr
 #include <dshow.h>
+#include <qedit.h>   // For ISampleGrabber, ISampleGrabberCB, CLSID_SampleGrabber, CLSID_NullRenderer
 
 namespace AkVCam {
 
