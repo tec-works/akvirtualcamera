@@ -23,6 +23,21 @@ echo.
 echo Building x64 virtual camera driver
 echo.
 
+REM Setup VS environment for x64
+echo "Attempting to set up Visual Studio x64 environment..."
+if defined ProgramFiles(x86) (
+    call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64 || call "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvarsall.bat" x64 || call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" x64 || (
+        echo "ERROR: Could not find vcvarsall.bat for VS 2022 x64. Check VS installation path."
+        exit /b 1
+    )
+) else (
+    call "C:\Program Files (x86)\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64 || call "C:\Program Files (x86)\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvarsall.bat" x64 || call "C:\Program Files (x86)\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" x64 || (
+        echo "ERROR: Could not find vcvarsall.bat for VS 2022 x64 (ProgramFiles(x86) not defined, trying Program Files). Check VS installation path."
+        exit /b 1
+    )
+)
+
+
 mkdir build-x64
 
 cmake ^
@@ -34,12 +49,31 @@ cmake ^
     -DCMAKE_BUILD_TYPE=Release ^
     -DCMAKE_INSTALL_PREFIX="%INSTALL_PREFIX%" ^
     -DDAILY_BUILD="%DAILY_BUILD%"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
 cmake --build build-x64 --config Release --parallel "%NJOBS%"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
 cmake --build build-x64 --config Release --target install
+if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo Building x86 virtual camera driver
 echo.
+
+REM Setup VS environment for x86
+echo "Attempting to set up Visual Studio x86 environment..."
+if defined ProgramFiles(x86) (
+    call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x86 || call "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvarsall.bat" x86 || call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" x86 || (
+        echo "ERROR: Could not find vcvarsall.bat for VS 2022 x86. Check VS installation path."
+        exit /b 1
+    )
+) else (
+    call "C:\Program Files (x86)\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x86 || call "C:\Program Files (x86)\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvarsall.bat" x86 || call "C:\Program Files (x86)\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" x86 || (
+        echo "ERROR: Could not find vcvarsall.bat for VS 2022 x86 (ProgramFiles(x86) not defined, trying Program Files). Check VS installation path."
+        exit /b 1
+    )
+)
 
 mkdir build-x86
 
@@ -52,5 +86,10 @@ cmake ^
     -DCMAKE_BUILD_TYPE=Release ^
     -DCMAKE_INSTALL_PREFIX="%INSTALL_PREFIX%" ^
     -DDAILY_BUILD="%DAILY_BUILD%"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
 cmake --build build-x86 --config Release --parallel "%NJOBS%"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
 cmake --build build-x86 --config Release --target install
+if %errorlevel% neq 0 exit /b %errorlevel%
