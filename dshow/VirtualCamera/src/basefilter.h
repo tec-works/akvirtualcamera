@@ -24,11 +24,15 @@
 #include <vector>
 
 #include "mediafilter.h"
+#include "physicalsourceinputpin.h" // Include for PhysicalSourceInputPin
+#include <vector> // For std::vector
+#include <windows.h> // For CRITICAL_SECTION
 
 namespace AkVCam
 {
     class BaseFilterPrivate;
     class VideoFormat;
+    // class PhysicalSourceInputPin; // Forward declare if not including header, but better to include
 
     class BaseFilter:
             public IBaseFilter,
@@ -49,6 +53,11 @@ namespace AkVCam
             IReferenceClock *referenceClock() const;
             std::string deviceId();
             std::string broadcaster();
+            std::string sourceCameraName() const; // Getter for source camera name
+            PhysicalSourceInputPin* GetPhysicalSourceInputPin() { return m_pPhysicalSourceInputPin; } // Getter for the input pin
+            void NotifyPhysicalFrameReady(const BYTE* pData, LONG size, const AM_MEDIA_TYPE& mt);
+            HRESULT GetLatestPhysicalFrame(std::vector<BYTE>& frameBuffer, AM_MEDIA_TYPE& frameMediaType);
+
 
             DECLARE_IMEDIAFILTER_NQ
 
@@ -66,9 +75,23 @@ namespace AkVCam
 
         private:
             BaseFilterPrivate *d;
+            std::string m_sourceCameraName; // Added to store source camera
+            // Members for physical camera graph
+            IGraphBuilder *m_pPhysicalSourceGraphBuilder = nullptr;
+            IBaseFilter *m_pPhysicalSourceFilter = nullptr;
+            PhysicalSourceInputPin* m_pPhysicalSourceInputPin = nullptr;
+            // Potentially add MediaControl, SampleGrabber interfaces etc.
+
+            // Buffer for latest frame from physical camera
+            std::vector<BYTE> m_physicalCameraLatestFrame;
+            CRITICAL_SECTION m_physicalFrameCritSec;
+            AM_MEDIA_TYPE m_physicalCameraMediaType;
+
 
         protected:
             void stateChanged(FILTER_STATE state);
+            void InitializeSourceCamera(); // Added to initialize physical camera
+            void ReleaseSourceCamera(); // Added to release physical camera resources
     };
 }
 

@@ -227,14 +227,9 @@ OSStatus AkVCam::PluginInterface::InitializeWithObjectID(CMIOObjectID objectID)
     AkLogInfo() << objectID << std::endl;
     this->m_objectID = objectID;
 
-    auto devicesToCreate = this->d->m_ipcBridge.devices();
-    AkLogInfo() << "PluginInterface::InitializeWithObjectID: Found " << devicesToCreate.size()
-                << " devices in preferences to create." << std::endl;
-
-    for (auto &deviceId: devicesToCreate) {
+    for (auto &deviceId: this->d->m_ipcBridge.devices()) {
         auto description = this->d->m_ipcBridge.description(deviceId);
         auto formats = this->d->m_ipcBridge.formats(deviceId);
-        AkLogInfo() << "Creating device: " << deviceId << " (" << description << ")" << std::endl;
         this->createDevice(deviceId, description, formats);
     }
 
@@ -304,18 +299,10 @@ void AkVCam::PluginInterface::frameReady(void *userData,
 {
     AkLogFunction();
     auto self = reinterpret_cast<PluginInterface *>(userData);
-    bool deviceFound = false;
-    for (auto device: self->m_devices) {
-        if (device->deviceId() == deviceId) {
-            // AkLogDebug() << "PluginInterface: Routing frame for " << deviceId << " to Device instance." << std::endl;
+
+    for (auto device: self->m_devices)
+        if (device->deviceId() == deviceId)
             device->frameReady(frame);
-            deviceFound = true;
-            break;
-        }
-    }
-    if (!deviceFound) {
-        AkLogWarning() << "PluginInterface: Received frame for unknown or unmatched deviceId: " << deviceId << std::endl;
-    }
 }
 
 void AkVCam::PluginInterface::pictureChanged(void *userData,

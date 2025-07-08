@@ -146,7 +146,8 @@ namespace AkVCam
             /* Server */
 
             std::string addDevice(const std::string &description,
-                                  const std::string &deviceId={});
+                                  const std::string &deviceId={},
+                                  const std::string &sourceCamera = "");
             void removeDevice(const std::string &deviceId);
             void addFormat(const std::string &deviceId,
                            const VideoFormat &format,

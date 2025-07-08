@@ -23,8 +23,23 @@
 #include <map>
 #include <list>
 #include <memory>
+#include <string> // For std::string
 
 #include "stream.h"
+
+// Forward declarations for AVFoundation types to keep Obj-C out of header if possible,
+// but for implementation simplicity, we might include headers in .mm file.
+// If these are directly in the header, it implies this header is for .mm consumption.
+#ifdef __OBJC__
+@class AVCaptureSession;
+@class AVCaptureDevice;
+@class AVCaptureVideoDataOutput;
+#else
+typedef void AVCaptureSession;
+typedef void AVCaptureDevice;
+typedef void AVCaptureVideoDataOutput;
+typedef void dispatch_queue_t;
+#endif
 
 namespace AkVCam
 {
@@ -51,7 +66,7 @@ namespace AkVCam
             void stopStreams();
 
             void serverStateChanged(IpcBridge::ServerState state);
-            void frameReady(const std::string &ipcDeviceId, const VideoFrame &frame);
+            void frameReady(const VideoFrame &frame);
             void setPicture(const std::string &picture);
             void setBroadcasting(const std::string &broadcaster);
             void setHorizontalMirror(bool horizontalMirror);
@@ -72,7 +87,22 @@ namespace AkVCam
             std::string m_deviceId;
             std::map<CMIOObjectID, StreamPtr> m_streams;
 
+            // AVFoundation related members for physical camera capture
+            std::string m_sourceCameraUniqueID;
+            AVCaptureSession* m_captureSession = nullptr;
+            AVCaptureDevice* m_physicalCaptureDevice = nullptr; // The physical AVFoundation device
+            AVCaptureVideoDataOutput* m_videoDataOutput = nullptr;
+            dispatch_queue_t m_captureSessionQueue = nullptr;
+            bool m_isSourcingFromPhysical = false;
+
+            void InitializePhysicalCameraCapture();
+            void ReleasePhysicalCameraCapture();
             void updateStreamsProperty();
+
+        // AVCaptureVideoDataOutputSampleBufferDelegate method needs to be callable
+        // This typically means the Device class (or a helper) conforms to the protocol.
+        // This is hard to represent purely in C++ header if it's an Obj-C protocol method.
+        // It will be implemented in the .mm file.
     };
 }
 

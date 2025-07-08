@@ -95,14 +95,315 @@ BOOL AkVCamEnumWindowsProc(HWND handler, LPARAM userData);
 AkVCam::BaseFilter::BaseFilter(const GUID &clsid,
                                const std::string &filterName,
                                const std::string &vendor):
-    MediaFilter(clsid, this)
+    MediaFilter(clsid, this),
+    m_sourceCameraName("") // Initialize m_sourceCameraName
 {
     this->setParent(this, &IID_IBaseFilter);
     this->d = new BaseFilterPrivate(this, filterName, vendor);
+    InitializeCriticalSection(&m_physicalFrameCritSec);
+    ZeroMemory(&m_physicalCameraMediaType, sizeof(AM_MEDIA_TYPE));
+
+
+    // Retrieve and store source camera name
+    std::string currentDeviceId = deviceId();
+    if (!currentDeviceId.empty()) {
+        int cameraIndex = Preferences::cameraFromId(currentDeviceId);
+        if (cameraIndex >= 0) {
+            m_sourceCameraName = Preferences::cameraCustomValue(static_cast<size_t>(cameraIndex), "sourceCamera");
+            AkLogInfo() << "Source camera for " << currentDeviceId << ": " << m_sourceCameraName << std::endl;
+            if (!m_sourceCameraName.empty()) {
+                HRESULT hr = S_OK;
+                m_pPhysicalSourceInputPin = new PhysicalSourceInputPin(this, &hr, L"PhysicalCamInput");
+                if (m_pPhysicalSourceInputPin) m_pPhysicalSourceInputPin->AddRef(); // CUnknown starts with 1, but good practice
+                else AkLogError() << "Failed to create PhysicalSourceInputPin";
+
+                InitializeSourceCamera(); // This will attempt to connect to m_pPhysicalSourceInputPin
+            }
+        }
+    }
+}
+
+void AkVCam::BaseFilter::NotifyPhysicalFrameReady(const BYTE* pData, LONG size, const AM_MEDIA_TYPE& mt) {
+    AkLogFunction();
+    EnterCriticalSection(&m_physicalFrameCritSec);
+
+    m_physicalCameraLatestFrame.assign(pData, pData + size);
+
+    // Free old format block if any
+    if (m_physicalCameraMediaType.cbFormat != 0) {
+        CoTaskMemFree(m_physicalCameraMediaType.pbFormat);
+    }
+    if (m_physicalCameraMediaType.pUnk != NULL) {
+        m_physicalCameraMediaType.pUnk->Release();
+    }
+
+    m_physicalCameraMediaType = mt; // Shallow copy
+    if (mt.cbFormat > 0 && mt.pbFormat != nullptr) {
+        m_physicalCameraMediaType.pbFormat = (BYTE*)CoTaskMemAlloc(mt.cbFormat);
+        if (m_physicalCameraMediaType.pbFormat) {
+            CopyMemory(m_physicalCameraMediaType.pbFormat, mt.pbFormat, mt.cbFormat);
+        } else {
+            m_physicalCameraMediaType.cbFormat = 0; // Failed allocation
+        }
+    }
+    if (mt.pUnk != nullptr) {
+        m_physicalCameraMediaType.pUnk = mt.pUnk;
+        m_physicalCameraMediaType.pUnk->AddRef();
+    }
+
+    LeaveCriticalSection(&m_physicalFrameCritSec);
+    // Potentially signal the output pin that a new frame is available if it's not polling
+}
+
+HRESULT AkVCam::BaseFilter::GetLatestPhysicalFrame(std::vector<BYTE>& frameBuffer, AM_MEDIA_TYPE& frameMediaType) {
+    AkLogFunction();
+    EnterCriticalSection(&m_physicalFrameCritSec);
+
+    if (m_physicalCameraLatestFrame.empty()) {
+        LeaveCriticalSection(&m_physicalFrameCritSec);
+        return VFW_E_WRONG_STATE; // Or S_FALSE if no frame yet
+    }
+
+    frameBuffer = m_physicalCameraLatestFrame; // Copy data
+
+    // Copy media type
+    if (frameMediaType.cbFormat != 0) CoTaskMemFree(frameMediaType.pbFormat);
+    if (frameMediaType.pUnk != NULL) frameMediaType.pUnk->Release();
+
+    frameMediaType = m_physicalCameraMediaType;
+    if (m_physicalCameraMediaType.cbFormat > 0 && m_physicalCameraMediaType.pbFormat != nullptr) {
+        frameMediaType.pbFormat = (BYTE*)CoTaskMemAlloc(m_physicalCameraMediaType.cbFormat);
+        if (frameMediaType.pbFormat) {
+            CopyMemory(frameMediaType.pbFormat, m_physicalCameraMediaType.pbFormat, m_physicalCameraMediaType.cbFormat);
+        } else {
+            frameMediaType.cbFormat = 0;
+            LeaveCriticalSection(&m_physicalFrameCritSec);
+            return E_OUTOFMEMORY;
+        }
+    }
+    if (m_physicalCameraMediaType.pUnk != nullptr) {
+        frameMediaType.pUnk = m_physicalCameraMediaType.pUnk;
+        frameMediaType.pUnk->AddRef();
+    }
+
+    LeaveCriticalSection(&m_physicalFrameCritSec);
+    return S_OK;
+}
+
+
+// Placeholder for actual physical camera initialization
+void AkVCam::BaseFilter::InitializeSourceCamera() {
+    AkLogFunction();
+    if (m_sourceCameraName.empty() || !m_pPhysicalSourceInputPin) {
+        AkLogInfo() << "No source camera specified." << std::endl;
+        return;
+    }
+    AkLogInfo() << "Initializing physical source camera: " << m_sourceCameraName << std::endl;
+    // TODO:
+    // 1. Find the physical camera filter by its FriendlyName (m_sourceCameraName).
+    //    - Use ICreateDevEnum and IEnumMoniker, similar to camera listing.
+    // 2. CoCreateInstance the physical camera filter.
+    // 3. Add it to an internal filter graph (m_pGraph in PushSource/BasePin).
+    // 4. Connect its output pin to an internal Tee filter or directly to a transform
+    //    that then feeds the virtual camera's output pin logic.
+    //    This part is complex and involves managing a separate DirectShow graph
+    //    within this filter.
+
+    // Find and instantiate the physical source filter
+    HRESULT hr;
+    ICreateDevEnum *pDevEnum = nullptr;
+    IEnumMoniker *pEnum = nullptr;
+    IMoniker *pMoniker = nullptr;
+
+    hr = CoCreateInstance(CLSID_SystemDeviceEnum, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pDevEnum));
+    if (FAILED(hr)) {
+        AkLogError() << "Failed to create SystemDeviceEnum: " << hr << std::endl;
+        return;
+    }
+
+    hr = pDevEnum->CreateClassEnumerator(CLSID_VideoInputDeviceCategory, &pEnum, 0);
+    if (FAILED(hr) || pEnum == nullptr) {
+        AkLogError() << "Failed to create class enumerator for video input devices or no devices found: " << hr << std::endl;
+        if(pDevEnum) pDevEnum->Release();
+        return;
+    }
+
+    bool found = false;
+    while (pEnum->Next(1, &pMoniker, nullptr) == S_OK) {
+        IPropertyBag *pPropBag = nullptr;
+        hr = pMoniker->BindToStorage(nullptr, nullptr, IID_PPV_ARGS(&pPropBag));
+        if (SUCCEEDED(hr)) {
+            VARIANT varName;
+            VariantInit(&varName);
+            hr = pPropBag->Read(L"FriendlyName", &varName, nullptr);
+            if (SUCCEEDED(hr)) {
+                std::wstring ws(varName.bstrVal, SysStringLen(varName.bstrVal));
+                std::string friendlyName(ws.begin(), ws.end());
+                VariantClear(&varName);
+
+                if (friendlyName == m_sourceCameraName) {
+                    AkLogInfo() << "Found physical camera: " << m_sourceCameraName << std::endl;
+                    hr = pMoniker->BindToObject(nullptr, nullptr, IID_IBaseFilter, (void**)&m_pPhysicalSourceFilter);
+                    if (SUCCEEDED(hr)) {
+                        AkLogInfo() << "Successfully bound to physical camera filter." << std::endl;
+                        found = true;
+                    } else {
+                        AkLogError() << "Failed to bind to physical camera filter: " << hr << std::endl;
+                    }
+                    // We found our camera, break from loop after releasing propbag and moniker
+                    pPropBag->Release();
+                    pMoniker->Release();
+                    break;
+                }
+            }
+             if (SUCCEEDED(hr)) VariantClear(&varName); // Ensure varName is cleared if Read succeeded but name didn't match
+            pPropBag->Release();
+        }
+        pMoniker->Release(); // Release moniker for current iteration
+    }
+
+    if (pEnum) pEnum->Release();
+    if (pDevEnum) pDevEnum->Release();
+
+    if (!found) {
+        AkLogError() << "Physical camera '" << m_sourceCameraName << "' not found." << std::endl;
+        m_pPhysicalSourceFilter = nullptr; // Ensure it's null if not found
+        return;
+    }
+
+    // TODO: If m_pPhysicalSourceFilter is not null, create internal graph, add filter, connect, run.
+    // For now, we just have the filter. The actual frame piping is next.
+    // This will likely involve creating m_pPhysicalSourceGraphBuilder, adding m_pPhysicalSourceFilter,
+    // and then connecting it within an internal graph. The output of that graph
+    // will then need to be fed into the virtual pin's data stream.
+
+    if (!m_pPhysicalSourceFilter) {
+        AkLogError() << "Physical source filter not available to initialize." << std::endl;
+        return;
+    }
+
+    HRESULT hr;
+    // Create the Filter Graph Manager for the physical camera
+    hr = CoCreateInstance(CLSID_FilterGraph, nullptr, CLSCTX_INPROC_SERVER, IID_IGraphBuilder, (void**)&m_pPhysicalSourceGraphBuilder);
+    if (FAILED(hr) || !m_pPhysicalSourceGraphBuilder) {
+        AkLogError() << "Failed to create physical source graph builder: " << hr << std::endl;
+        if (m_pPhysicalSourceFilter) { // Still release the source filter if graph fails
+            m_pPhysicalSourceFilter->Release();
+            m_pPhysicalSourceFilter = nullptr;
+        }
+        return;
+    }
+    AkLogInfo() << "Physical source graph builder created." << std::endl;
+
+    hr = m_pPhysicalSourceGraphBuilder->AddFilter(m_pPhysicalSourceFilter, L"Physical Source Camera");
+    if (FAILED(hr)) {
+        AkLogError() << "Failed to add physical source filter to graph: " << hr << std::endl;
+        // Release graph and filter
+        if (m_pPhysicalSourceFilter) { m_pPhysicalSourceFilter->Release(); m_pPhysicalSourceFilter = nullptr; }
+        if (m_pPhysicalSourceGraphBuilder) { m_pPhysicalSourceGraphBuilder->Release(); m_pPhysicalSourceGraphBuilder = nullptr; }
+        return;
+    }
+    AkLogInfo() << "Physical source filter added to graph." << std::endl;
+
+    // Find output pin of physical camera
+    IPin *pPhysOutPin = nullptr;
+    IEnumPins *pEnumPins = nullptr;
+    hr = m_pPhysicalSourceFilter->EnumPins(&pEnumPins);
+    if (SUCCEEDED(hr)) {
+        IPin *pPin = nullptr;
+        while (pEnumPins->Next(1, &pPin, nullptr) == S_OK) {
+            PIN_DIRECTION pinDir;
+            pPin->QueryDirection(&pinDir);
+            if (pinDir == PINDIR_OUTPUT) {
+                pPhysOutPin = pPin;
+                // pPhysOutPin already AddRef'd by Next
+                break;
+            }
+            pPin->Release();
+        }
+        pEnumPins->Release();
+    }
+
+    if (!pPhysOutPin) {
+        AkLogError() << "Could not find output pin on physical source filter." << std::endl;
+        // Release graph and filter
+        if (m_pPhysicalSourceFilter) { m_pPhysicalSourceFilter->Release(); m_pPhysicalSourceFilter = nullptr; }
+        if (m_pPhysicalSourceGraphBuilder) { m_pPhysicalSourceGraphBuilder->Release(); m_pPhysicalSourceGraphBuilder = nullptr; }
+        return;
+    }
+    AkLogInfo() << "Found output pin on physical source filter." << std::endl;
+
+    // Connect physical camera output to our custom input pin
+    hr = m_pPhysicalSourceGraphBuilder->Connect(pPhysOutPin, m_pPhysicalSourceInputPin);
+    pPhysOutPin->Release(); // Release our ref to the physical output pin
+
+    if (FAILED(hr)) {
+        AkLogError() << "Failed to connect physical source output to our input pin: " << hr << std::endl;
+        // Release graph and filter
+        if (m_pPhysicalSourceFilter) { m_pPhysicalSourceFilter->Release(); m_pPhysicalSourceFilter = nullptr; }
+        if (m_pPhysicalSourceGraphBuilder) { m_pPhysicalSourceGraphBuilder->Release(); m_pPhysicalSourceGraphBuilder = nullptr; }
+        return;
+    }
+    AkLogInfo() << "Successfully connected physical camera to our input pin." << std::endl;
+
+    // Run the physical camera graph
+    IMediaControl *pMC = nullptr;
+    hr = m_pPhysicalSourceGraphBuilder->QueryInterface(IID_IMediaControl, (void**)&pMC);
+    if (SUCCEEDED(hr)) {
+        hr = pMC->Run();
+        if (FAILED(hr)) {
+            AkLogError() << "Failed to run the physical source graph: " << hr << std::endl;
+        } else {
+            AkLogInfo() << "Physical source graph is running." << std::endl;
+        }
+        pMC->Release();
+    } else {
+        AkLogError() << "Failed to get IMediaControl for physical source graph: " << hr << std::endl;
+    }
+}
+
+void AkVCam::BaseFilter::ReleaseSourceCamera() {
+    AkLogFunction();
+    if (m_pPhysicalSourceGraphBuilder) {
+        IMediaControl *pMC = nullptr;
+        m_pPhysicalSourceGraphBuilder->QueryInterface(IID_IMediaControl, (void**)&pMC);
+        if (pMC) {
+            pMC->Stop(); // Stop the graph before dismantling
+            AkLogInfo() << "Stopped physical source graph." << std::endl;
+            pMC->Release();
+        }
+    }
+    // TODO: Disconnect pins, remove filters from graph before releasing.
+    // For now, direct release. Proper cleanup would involve:
+    // IEnumPins on m_pPhysicalSourceFilter, for each pin, call Disconnect.
+    // m_pPhysicalSourceGraphBuilder->RemoveFilter(m_pPhysicalSourceFilter);
+    // Similar for any other filters added to m_pPhysicalSourceGraphBuilder.
+
+    if (m_pPhysicalSourceFilter) {
+        m_pPhysicalSourceFilter->Release();
+        m_pPhysicalSourceFilter = nullptr;
+        AkLogInfo() << "Released physical source filter." << std::endl;
+    }
+    if (m_pPhysicalSourceGraphBuilder) {
+        // TODO: Remove filters from graph before releasing graph builder
+        m_pPhysicalSourceGraphBuilder->Release();
+        m_pPhysicalSourceGraphBuilder = nullptr;
+        AkLogInfo() << "Released physical source graph builder." << std::endl;
+    }
 }
 
 AkVCam::BaseFilter::~BaseFilter()
 {
+    ReleaseSourceCamera(); // Release physical camera resources
+    if (m_pPhysicalSourceInputPin) {
+        m_pPhysicalSourceInputPin->Release();
+        m_pPhysicalSourceInputPin = nullptr;
+    }
+    DeleteCriticalSection(&m_physicalFrameCritSec);
+    // Free media type if allocated
+    if (m_physicalCameraMediaType.cbFormat != 0) CoTaskMemFree(m_physicalCameraMediaType.pbFormat);
+    if (m_physicalCameraMediaType.pUnk != NULL) m_physicalCameraMediaType.pUnk->Release();
+
     delete this->d;
 }
 
@@ -171,6 +472,11 @@ std::string AkVCam::BaseFilter::broadcaster()
         return {};
 
     return this->d->m_ipcBridge.broadcaster(deviceId);
+}
+
+std::string AkVCam::BaseFilter::sourceCameraName() const
+{
+    return m_sourceCameraName;
 }
 
 HRESULT AkVCam::BaseFilter::QueryInterface(const IID &riid, void **ppvObject)

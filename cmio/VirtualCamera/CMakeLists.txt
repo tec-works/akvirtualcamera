@@ -18,11 +18,16 @@
 
 cmake_minimum_required(VERSION 3.14)
 
-project(VirtualCamera LANGUAGES CXX)
+project(VirtualCamera LANGUAGES CXX OBJCXX)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# Enable Objective-C++ for .mm files
+set(CMAKE_CXX_EXTENSIONS OFF) # Avoids issues with some compilers
+set(CMAKE_OBJCXX_STANDARD 11) # Or your desired ObjC++ standard
+set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
+
 
 include(../cmio.cmake)
 
@@ -32,7 +37,7 @@ set(MACBINPATH ${CONTENTSPATH}/MacOS)
 add_library(VirtualCamera SHARED
             src/clock.cpp
             src/clock.h
-            src/device.cpp
+            src/device.mm # Changed from .cpp
             src/device.h
             src/object.cpp
             src/object.h
@@ -66,6 +71,7 @@ find_library(COREVIDEO_FRAMEWORK NAMES CoreVideo)
 find_library(FOUNDATION_FRAMEWORK NAMES Foundation)
 find_library(IOKIT_FRAMEWORK NAMES IOKit)
 find_library(IOSURFACE_FRAMEWORK NAMES IOSurface)
+find_library(AVFOUNDATION_FRAMEWORK NAMES AVFoundation) # Added AVFoundation
 set(EXTRA_LIBS ${COREFOUNDATION_FRAMEWORK}
                ${COREGRAPHICS_FRAMEWORK}
                ${COREMEDIA_FRAMEWORK}
@@ -73,7 +79,8 @@ set(EXTRA_LIBS ${COREFOUNDATION_FRAMEWORK}
                ${COREVIDEO_FRAMEWORK}
                ${FOUNDATION_FRAMEWORK}
                ${IOKIT_FRAMEWORK}
-               ${IOSURFACE_FRAMEWORK})
+               ${IOSURFACE_FRAMEWORK}
+               ${AVFOUNDATION_FRAMEWORK}) # Added AVFoundation
 target_link_libraries(VirtualCamera
                       PlatformUtils
                       VCamUtils

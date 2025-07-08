@@ -34,7 +34,8 @@ endif ()
 add_executable(Manager
                src/cmdparser.h
                src/main.cpp
-               src/cmdparser.cpp)
+               src/cmdparser.cpp
+               $<$<PLATFORM_ID:Darwin>:src/macos_camera_lister.mm>)
 set_target_properties(Manager PROPERTIES
                       OUTPUT_NAME AkVCamManager
                       RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build/${INSTALLPATH})
@@ -54,13 +55,15 @@ if (APPLE)
     find_library(FOUNDATION_FRAMEWORK NAMES Foundation)
     find_library(IOKIT_FRAMEWORK NAMES IOKit)
     find_library(IOSURFACE_FRAMEWORK NAMES IOSurface)
+    find_library(AVFOUNDATION_FRAMEWORK NAMES AVFoundation)
     set(EXTRA_LIBS ${COREFOUNDATION_FRAMEWORK}
                    ${COREMEDIA_FRAMEWORK}
                    ${COREMEDIAIO_FRAMEWORK}
                    ${COREVIDEO_FRAMEWORK}
                    ${FOUNDATION_FRAMEWORK}
                    ${IOKIT_FRAMEWORK}
-                   ${IOSURFACE_FRAMEWORK})
+                   ${IOSURFACE_FRAMEWORK}
+                   ${AVFOUNDATION_FRAMEWORK})
     target_link_libraries(Manager
                           ${EXTRA_LIBS})
 elseif (WIN32)

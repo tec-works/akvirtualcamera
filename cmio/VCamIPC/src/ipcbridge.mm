@@ -583,11 +583,21 @@ std::string AkVCam::IpcBridge::clientExe(uint64_t pid) const
 }
 
 std::string AkVCam::IpcBridge::addDevice(const std::string &description,
-                                         const std::string &deviceId)
+                                         const std::string &deviceId,
+                                         const std::string &sourceCamera)
 {
     AkLogFunction();
-
-    return Preferences::addDevice(description, deviceId);
+    // Store the sourceCamera information in the preferences
+    // The actual capture and piping will be handled by the CMIO plugin
+    // which will read this information.
+    std::string newDeviceId = Preferences::addDevice(description, deviceId);
+    if (!newDeviceId.empty() && !sourceCamera.empty()) {
+        auto cameraIndex = Preferences::cameraFromId(newDeviceId);
+        if (cameraIndex >= 0) {
+            Preferences::cameraSetCustomValue(size_t(cameraIndex), "sourceCamera", sourceCamera);
+        }
+    }
+    return newDeviceId;
 }
 
 void AkVCam::IpcBridge::removeDevice(const std::string &deviceId)

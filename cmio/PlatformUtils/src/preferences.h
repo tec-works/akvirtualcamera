@@ -82,6 +82,8 @@ namespace AkVCam
         void cameraSetControlValue(size_t cameraIndex,
                                    const std::string &key,
                                    int value);
+        std::string cameraCustomValue(size_t cameraIndex, const std::string &key);
+        void cameraSetCustomValue(size_t cameraIndex, const std::string &key, const std::string &value);
         std::string picture();
         void setPicture(const std::string &picture);
         int logLevel();

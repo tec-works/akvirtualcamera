@@ -22,18 +22,13 @@
 
 #include <string>
 #include <vector>
-#include <ostream> // Required for std::ostream operator<< declarations
 
-#include "videoformattypes.h" // Defines AkVCam::FourCC, AkVCam::PixelFormat
+#include "videoformattypes.h"
 #include "fraction.h"
-
-#ifdef _WIN32
-#include <guiddef.h> // Provides GUID definition
-#endif
 
 namespace AkVCam
 {
-    class VideoFormat; // Forward declaration for operator<<
+    class VideoFormat;
     class VideoFormatPrivate;
     using VideoFormats = std::vector<VideoFormat>;
 
@@ -77,19 +72,12 @@ namespace AkVCam
                                      int align=32);
             static FourCC fourccFromString(const std::string &fourccStr);
             static std::string stringFromFourcc(FourCC fourcc);
-#ifdef _WIN32
-            static AkVCam::FourCC guidToFourcc(const GUID &guid); // Use GUID
-            static GUID fourccToGuid(AkVCam::FourCC fourcc);   // Use GUID
-#endif
 
         private:
             VideoFormatPrivate *d;
     };
-} // namespace AkVCam
+}
 
-// operator<< declarations should be outside the AkVCam namespace if they take AkVCam::VideoFormat
-// or correctly namespaced if they are friends or defined within.
-// For now, assuming global namespace or correct handling elsewhere.
 std::ostream &operator <<(std::ostream &os, const AkVCam::VideoFormat &format);
 std::ostream &operator <<(std::ostream &os, const AkVCam::VideoFormats &formats);
 

@@ -52,10 +52,7 @@ namespace AkVCam
 
         // two planes -- one Y, one Cr + Cb interleaved
         PixelFormatNV12 = MKFOURCC('N', 'V', '1', '2'),
-        PixelFormatNV21 = MKFOURCC('N', 'V', '2', '1'),
-
-        // Compressed formats
-        FourCC_MJPG     = MKFOURCC('M', 'J', 'P', 'G')
+        PixelFormatNV21 = MKFOURCC('N', 'V', '2', '1')
     };
 }
 

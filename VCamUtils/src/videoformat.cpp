@@ -1,4 +1,3 @@
-#define NOMINMAX // Prevent min/max macros from Windows.h
 /* akvirtualcamera, virtual camera for Mac and Windows.
  * Copyright (C) 2020  Gonzalo Exequiel Pedone
  *
@@ -18,23 +17,13 @@
  * Web-Site: http://webcamoid.github.io/
  */
 
-#include <algorithm> // For std::min_element, std::max_element
-#include <limits>    // For std::numeric_limits
+#include <algorithm>
+#include <limits>
 #include <map>
 #include <ostream>
-#include <vector>    // For std::vector
-#include <string>    // For std::string
 
 #include "videoformat.h"
-#include "utils.h" // For AkLogWarning, etc.
-
-#ifdef _WIN32
-#include <windows.h> // General Windows header, includes guiddef.h
-#include <dshow.h>   // For MEDIASUBTYPE_... GUIDs
-// Ensure FourCC_MJPG is usable if not directly a MEDIASUBTYPE
-// It's defined in videoformattypes.h, so AkVCam::FourCC_MJPG is the way.
-#endif
-
+#include "utils.h"
 
 namespace AkVCam
 {
@@ -84,14 +73,14 @@ namespace AkVCam
                 return alignUp<T>(value, 32);
             }
     };
+}
 
-
-VideoFormat::VideoFormat()
+AkVCam::VideoFormat::VideoFormat()
 {
     this->d = new VideoFormatPrivate;
 }
 
-VideoFormat::VideoFormat(FourCC fourcc,
+AkVCam::VideoFormat::VideoFormat(FourCC fourcc,
                                  int width,
                                  int height,
                                  const std::vector<Fraction> &frameRates)
@@ -99,7 +88,7 @@ VideoFormat::VideoFormat(FourCC fourcc,
     this->d = new VideoFormatPrivate(fourcc, width, height, frameRates);
 }
 
-VideoFormat::VideoFormat(const VideoFormat &other)
+AkVCam::VideoFormat::VideoFormat(const VideoFormat &other)
 {
     this->d = new VideoFormatPrivate(other.d->m_fourcc,
                                      other.d->m_width,
@@ -107,12 +96,12 @@ VideoFormat::VideoFormat(const VideoFormat &other)
                                      other.d->m_frameRates);
 }
 
-VideoFormat::~VideoFormat()
+AkVCam::VideoFormat::~VideoFormat()
 {
     delete this->d;
 }
 
-VideoFormat &VideoFormat::operator =(const VideoFormat &other)
+AkVCam::VideoFormat &AkVCam::VideoFormat::operator =(const VideoFormat &other)
 {
     if (this != &other) {
         this->d->m_fourcc = other.d->m_fourcc;
@@ -124,7 +113,7 @@ VideoFormat &VideoFormat::operator =(const VideoFormat &other)
     return *this;
 }
 
-bool VideoFormat::operator ==(const AkVCam::VideoFormat &other) const
+bool AkVCam::VideoFormat::operator ==(const AkVCam::VideoFormat &other) const
 {
     return this->d->m_fourcc == other.d->m_fourcc
            && this->d->m_width == other.d->m_width
@@ -132,7 +121,7 @@ bool VideoFormat::operator ==(const AkVCam::VideoFormat &other) const
            && this->d->m_frameRates == other.d->m_frameRates;
 }
 
-bool VideoFormat::operator !=(const AkVCam::VideoFormat &other) const
+bool AkVCam::VideoFormat::operator !=(const AkVCam::VideoFormat &other) const
 {
     return this->d->m_fourcc != other.d->m_fourcc
            || this->d->m_width != other.d->m_width
@@ -140,68 +129,67 @@ bool VideoFormat::operator !=(const AkVCam::VideoFormat &other) const
            || this->d->m_frameRates != other.d->m_frameRates;
 }
 
-VideoFormat::operator bool() const
+AkVCam::VideoFormat::operator bool() const
 {
     return this->isValid();
 }
 
-FourCC VideoFormat::fourcc() const
+AkVCam::FourCC AkVCam::VideoFormat::fourcc() const
 {
     return this->d->m_fourcc;
 }
 
-FourCC &VideoFormat::fourcc()
+AkVCam::FourCC &AkVCam::VideoFormat::fourcc()
 {
     return this->d->m_fourcc;
 }
 
-int VideoFormat::width() const
+int AkVCam::VideoFormat::width() const
 {
     return this->d->m_width;
 }
 
-int &VideoFormat::width()
+int &AkVCam::VideoFormat::width()
 {
     return this->d->m_width;
 }
 
-int VideoFormat::height() const
+int AkVCam::VideoFormat::height() const
 {
     return this->d->m_height;
 }
 
-int &VideoFormat::height()
+int &AkVCam::VideoFormat::height()
 {
     return this->d->m_height;
 }
 
-std::vector<Fraction> VideoFormat::frameRates() const
+std::vector<AkVCam::Fraction> AkVCam::VideoFormat::frameRates() const
 {
     return this->d->m_frameRates;
 }
 
-std::vector<Fraction> &VideoFormat::frameRates()
+std::vector<AkVCam::Fraction> &AkVCam::VideoFormat::frameRates()
 {
     return this->d->m_frameRates;
 }
 
-std::vector<FractionRange> VideoFormat::frameRateRanges() const
+std::vector<AkVCam::FractionRange> AkVCam::VideoFormat::frameRateRanges() const
 {
     std::vector<FractionRange> ranges;
 
     if (!this->d->m_frameRates.empty()) {
-        // Ensure NOMINMAX is defined before this if windows.h is included
-        auto min_it = std::min_element(this->d->m_frameRates.begin(), this->d->m_frameRates.end());
-        auto max_it = std::max_element(this->d->m_frameRates.begin(), this->d->m_frameRates.end());
-        if (min_it != this->d->m_frameRates.end() && max_it != this->d->m_frameRates.end()){
-             ranges.emplace_back(FractionRange {*min_it, *max_it});
-        }
+        auto min = *std::min_element(this->d->m_frameRates.begin(),
+                                     this->d->m_frameRates.end());
+        auto max = *std::max_element(this->d->m_frameRates.begin(),
+                                     this->d->m_frameRates.end());
+        ranges.emplace_back(FractionRange {min, max});
     }
 
     return ranges;
 }
 
-Fraction VideoFormat::minimumFrameRate() const
+AkVCam::Fraction AkVCam::VideoFormat::minimumFrameRate() const
 {
     if (this->d->m_frameRates.empty())
         return {0, 0};
@@ -210,59 +198,86 @@ Fraction VideoFormat::minimumFrameRate() const
                              this->d->m_frameRates.end());
 }
 
-size_t VideoFormat::bpp() const
+size_t AkVCam::VideoFormat::bpp() const
 {
-    auto vf = VideoFormatGlobals::byPixelFormat(static_cast<PixelFormat>(this->d->m_fourcc));
+    auto vf = VideoFormatGlobals::byPixelFormat(PixelFormat(this->d->m_fourcc));
+
     return vf? vf->bpp: 0;
 }
 
-size_t VideoFormat::bypl(size_t plane) const
+size_t AkVCam::VideoFormat::bypl(size_t plane) const
 {
-    auto vf = VideoFormatGlobals::byPixelFormat(static_cast<PixelFormat>(this->d->m_fourcc));
-    if (!vf) return 0;
-    if (vf->bypl) return vf->bypl(plane, static_cast<size_t>(this->d->m_width));
-    return VideoFormatGlobals::align32(static_cast<size_t>(this->d->m_width) * vf->bpp) / 8;
+    auto vf = VideoFormatGlobals::byPixelFormat(PixelFormat(this->d->m_fourcc));
+
+    if (!vf)
+        return 0;
+
+    if (vf->bypl)
+        return vf->bypl(plane, size_t(this->d->m_width));
+
+    return VideoFormatGlobals::align32(size_t(this->d->m_width) * vf->bpp) / 8;
 }
 
-size_t VideoFormat::size() const
+size_t AkVCam::VideoFormat::size() const
 {
-    auto vf = VideoFormatGlobals::byPixelFormat(static_cast<PixelFormat>(this->d->m_fourcc));
-    if (!vf) return 0;
+    auto vf = VideoFormatGlobals::byPixelFormat(PixelFormat(this->d->m_fourcc));
+
+    if (!vf)
+        return 0;
+
     if (vf->planeOffset)
-        return vf->planeOffset(vf->planes, static_cast<size_t>(this->d->m_width), static_cast<size_t>(this->d->m_height));
-    return static_cast<size_t>(this->d->m_height) * VideoFormatGlobals::align32(static_cast<size_t>(this->d->m_width) * vf->bpp) / 8;
+        return vf->planeOffset(vf->planes,
+                               size_t(this->d->m_width),
+                               size_t(this->d->m_height));
+
+    return size_t(this->d->m_height)
+           * VideoFormatGlobals::align32(size_t(this->d->m_width)
+                                         * vf->bpp) / 8;
 }
 
-size_t VideoFormat::planes() const
+size_t AkVCam::VideoFormat::planes() const
 {
-    auto vf = VideoFormatGlobals::byPixelFormat(static_cast<PixelFormat>(this->d->m_fourcc));
+    auto vf = VideoFormatGlobals::byPixelFormat(PixelFormat(this->d->m_fourcc));
+
     return vf? vf->planes: 0;
 }
 
-size_t VideoFormat::offset(size_t plane) const
+size_t AkVCam::VideoFormat::offset(size_t plane) const
 {
-    auto vf = VideoFormatGlobals::byPixelFormat(static_cast<PixelFormat>(this->d->m_fourcc));
-    if (!vf) return 0;
+    auto vf = VideoFormatGlobals::byPixelFormat(PixelFormat(this->d->m_fourcc));
+
+    if (!vf)
+        return 0;
+
     if (vf->planeOffset)
-        return vf->planeOffset(plane, static_cast<size_t>(this->d->m_width), static_cast<size_t>(this->d->m_height));
+        return vf->planeOffset(plane,
+                               size_t(this->d->m_width),
+                               size_t(this->d->m_height));
+
     return 0;
 }
 
-size_t VideoFormat::planeSize(size_t plane) const
+size_t AkVCam::VideoFormat::planeSize(size_t plane) const
 {
-    return static_cast<size_t>(this->d->m_height) * this->bypl(plane);
+    return size_t(this->d->m_height) * this->bypl(plane);
 }
 
-bool VideoFormat::isValid() const
+bool AkVCam::VideoFormat::isValid() const
 {
-    if (this->size() < 1) return false;
-    if (this->d->m_frameRates.empty()) return false;
+    if (this->size() < 1)
+        return false;
+
+    if (this->d->m_frameRates.empty())
+        return false;
+
     for (auto &fps: this->d->m_frameRates)
-        if (fps.num() < 1 || fps.den() < 1) return false;
+        if (fps.num() < 1 || fps.den() < 1)
+            return false;
+
     return true;
 }
 
-void VideoFormat::clear()
+void AkVCam::VideoFormat::clear()
 {
     this->d->m_fourcc = 0;
     this->d->m_width = 0;
@@ -270,29 +285,23 @@ void VideoFormat::clear()
     this->d->m_frameRates.clear();
 }
 
-VideoFormat VideoFormat::nearest(const std::vector<VideoFormat> &formats) const
+AkVCam::VideoFormat AkVCam::VideoFormat::nearest(const std::vector<VideoFormat> &formats) const
 {
     VideoFormat nearestFormat;
-    uint64_t q = std::numeric_limits<uint64_t>::max(); // Correct initialization of q
-    auto svf = VideoFormatGlobals::byPixelFormat(static_cast<PixelFormat>(this->d->m_fourcc));
+    auto q = std::numeric_limits<uint64_t>::max();
+    auto svf = VideoFormatGlobals::byPixelFormat(PixelFormat(this->d->m_fourcc));
 
     for (auto &format: formats) {
-        auto vf = VideoFormatGlobals::byPixelFormat(static_cast<PixelFormat>(format.d->m_fourcc));
+        auto vf = VideoFormatGlobals::byPixelFormat(PixelFormat(format.d->m_fourcc));
         uint64_t diffFourcc = format.d->m_fourcc == this->d->m_fourcc? 0: 1;
         auto diffWidth = format.d->m_width - this->d->m_width;
         auto diffHeight = format.d->m_height - this->d->m_height;
-
-        size_t svf_bpp = svf ? svf->bpp : 0;
-        size_t vf_bpp = vf ? vf->bpp : 0;
-        size_t svf_planes = svf ? svf->planes : 0;
-        size_t vf_planes = vf ? vf->planes : 0;
-
-        auto diffBpp = vf_bpp - svf_bpp;
-        auto diffPlanes = vf_planes - svf_planes;
+        auto diffBpp = vf->bpp - svf->bpp;
+        auto diffPlanes = vf->planes - svf->planes;
 
         uint64_t k = diffFourcc
-                   + static_cast<uint64_t>(diffWidth * diffWidth)
-                   + static_cast<uint64_t>(diffHeight * diffHeight)
+                   + uint64_t(diffWidth * diffWidth)
+                   + uint64_t(diffHeight * diffHeight)
                    + diffBpp * diffBpp
                    + diffPlanes * diffPlanes;
 
@@ -301,81 +310,57 @@ VideoFormat VideoFormat::nearest(const std::vector<VideoFormat> &formats) const
             q = k;
         }
     }
+
     return nearestFormat;
 }
 
-void VideoFormat::roundNearest(int width, int height,
+void AkVCam::VideoFormat::roundNearest(int width, int height,
                                        int *owidth, int *oheight,
                                        int align)
 {
+    /* Explanation:
+     *
+     * When 'align' is a power of 2, the left most bit will be 1 (the pivot),
+     * while all other bits be 0, if destination width is multiple of 'align'
+     * all bits after pivot position will be 0, then we create a mask
+     * substracting 1 to the align, so all bits after pivot position in the
+     * mask will 1.
+     * Then we negate all bits in the mask so all bits from pivot to the left
+     * will be 1, and then we use that mask to get a width multiple of align.
+     * This give us the lower (floor) width nearest to the original 'width' and
+     * multiple of align. To get the rounded nearest value we add align / 2 to
+     * 'width'.
+     * This is the equivalent of:
+     *
+     * align * round(width / align)
+     */
     *owidth = (width + (align >> 1)) & ~(align - 1);
+
+    /* Find the nearest width:
+     *
+     * round(height * owidth / width)
+     */
     *oheight = (2 * height * *owidth + width) / (2 * width);
 }
 
-FourCC VideoFormat::fourccFromString(const std::string &fourccStr)
+AkVCam::FourCC AkVCam::VideoFormat::fourccFromString(const std::string &fourccStr)
 {
     auto vf = VideoFormatGlobals::byStr(fourccStr);
+
     return vf? vf->format: 0;
 }
 
-std::string VideoFormat::stringFromFourcc(FourCC fourcc)
+std::string AkVCam::VideoFormat::stringFromFourcc(AkVCam::FourCC fourcc)
 {
-    auto vf = VideoFormatGlobals::byPixelFormat(static_cast<PixelFormat>(fourcc));
-    if (vf) return vf->str;
-    if (fourcc == AkVCam::FourCC_MJPG) return "MJPG"; // Handle if not in global list
-    return std::string(); // Return empty string for unknown FourCCs
+    auto vf = VideoFormatGlobals::byPixelFormat(PixelFormat(fourcc));
+
+    return vf? vf->str: std::string();
 }
 
-#ifdef _WIN32
-// These functions are static members of VideoFormat class
-FourCC VideoFormat::guidToFourcc(const GUID &guid) {
-    if (guid == MEDIASUBTYPE_RGB32) return AkVCam::PixelFormatRGB32;
-    if (guid == MEDIASUBTYPE_RGB24) return AkVCam::PixelFormatRGB24;
-    if (guid == MEDIASUBTYPE_RGB565) return AkVCam::PixelFormatRGB16;
-    if (guid == MEDIASUBTYPE_RGB555) return AkVCam::PixelFormatRGB15;
-    if (guid == MEDIASUBTYPE_YUY2) return AkVCam::PixelFormatYUY2;
-    if (guid == MEDIASUBTYPE_UYVY) return AkVCam::PixelFormatUYVY;
-    if (guid == MEDIASUBTYPE_NV12) return AkVCam::PixelFormatNV12;
-    if (guid == MEDIASUBTYPE_MJPG) return AkVCam::FourCC_MJPG;
-
-    if (guid.Data2 == 0x0000 && guid.Data3 == 0x0010 &&
-        guid.Data4[0] == 0x80 && guid.Data4[1] == 0x00 &&
-        guid.Data4[2] == 0x00 && guid.Data4[3] == 0xaa &&
-        guid.Data4[4] == 0x00 && guid.Data4[5] == 0x38 &&
-        guid.Data4[6] == 0x9b && guid.Data4[7] == 0x71) {
-        return guid.Data1;
-    }
-
-    // AkLogWarning() << "VideoFormat::guidToFourcc: Unknown GUID." << std::endl;
-    return 0;
-}
-
-GUID VideoFormat::fourccToGuid(AkVCam::FourCC fourcc) {
-    // Use static_cast for clarity if PixelFormat and FourCC are different types underlyingly
-    // but used interchangeably for these known values.
-    switch (static_cast<PixelFormat>(fourcc)) {
-        case AkVCam::PixelFormatRGB32: return MEDIASUBTYPE_RGB32;
-        case AkVCam::PixelFormatRGB24: return MEDIASUBTYPE_RGB24;
-        case AkVCam::PixelFormatRGB16: return MEDIASUBTYPE_RGB565;
-        case AkVCam::PixelFormatRGB15: return MEDIASUBTYPE_RGB555;
-        case AkVCam::PixelFormatYUY2:  return MEDIASUBTYPE_YUY2;
-        case AkVCam::PixelFormatUYVY:  return MEDIASUBTYPE_UYVY;
-        case AkVCam::PixelFormatNV12:  return MEDIASUBTYPE_NV12;
-        // AkVCam::FourCC_MJPG is not part of PixelFormat enum, handle separately
-        default:
-            if (fourcc == AkVCam::FourCC_MJPG) return MEDIASUBTYPE_MJPG;
-
-            // Default construction for other FOURCCs
-            GUID newGuid = {fourcc, 0x0000, 0x0010, {0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71}};
-            return newGuid;
-    }
-}
-#endif
-
-VideoFormatPrivate::VideoFormatPrivate(FourCC fourcc,
-                                       int width,
-                                       int height,
-                                       const std::vector<Fraction> &frameRates):
+AkVCam::VideoFormatPrivate::VideoFormatPrivate(FourCC fourcc,
+                                               int width,
+                                               int height,
+                                               const std::vector<Fraction> &frameRates):
     m_fourcc(fourcc),
     m_width(width),
     m_height(height),
@@ -383,9 +368,9 @@ VideoFormatPrivate::VideoFormatPrivate(FourCC fourcc,
 {
 }
 
-const std::vector<VideoFormatGlobals> &VideoFormatGlobals::formats()
+const std::vector<AkVCam::VideoFormatGlobals> &AkVCam::VideoFormatGlobals::formats()
 {
-    static const std::vector<VideoFormatGlobals> s_formats {
+    static const std::vector<VideoFormatGlobals> formats {
         {PixelFormatRGB32, 32, 1,  nullptr, nullptr, "RGB32"},
         {PixelFormatRGB24, 24, 1,  nullptr, nullptr, "RGB24"},
         {PixelFormatRGB16, 16, 1,  nullptr, nullptr, "RGB16"},
@@ -398,68 +383,60 @@ const std::vector<VideoFormatGlobals> &VideoFormatGlobals::formats()
         {PixelFormatYUY2 , 16, 1,  nullptr, nullptr,  "YUY2"},
         {PixelFormatNV12 , 12, 2, offsetNV,  byplNV,  "NV12"},
         {PixelFormatNV21 , 12, 2, offsetNV,  byplNV,  "NV21"}
-        // Note: FourCC_MJPG is not in this list, so stringFromFourcc(FourCC_MJPG) would be empty.
     };
-    return s_formats;
+
+    return formats;
 }
 
-const VideoFormatGlobals *VideoFormatGlobals::byPixelFormat(PixelFormat pixelFormat)
+const AkVCam::VideoFormatGlobals *AkVCam::VideoFormatGlobals::byPixelFormat(PixelFormat pixelFormat)
 {
-    for (auto &format_item: formats()) // Changed 'format' to 'format_item' to avoid conflict
-        if (format_item.format == pixelFormat)
-            return &format_item;
-    if (pixelFormat == static_cast<PixelFormat>(AkVCam::FourCC_MJPG)) {
-        static const VideoFormatGlobals mjpgFormat = {static_cast<PixelFormat>(AkVCam::FourCC_MJPG), 0, 1, nullptr, nullptr, "MJPG"};
-        return &mjpgFormat;
-    }
+    for (auto &format: formats())
+        if (format.format == pixelFormat)
+            return &format;
+
     return nullptr;
 }
 
-const VideoFormatGlobals *VideoFormatGlobals::byStr(const std::string &str)
+const AkVCam::VideoFormatGlobals *AkVCam::VideoFormatGlobals::byStr(const std::string &str)
 {
-    for (auto &format_item: formats()) // Changed 'format' to 'format_item' to avoid conflict
-        if (format_item.str == str)
-            return &format_item;
-    if (str == "MJPG") {
-        static const VideoFormatGlobals mjpgFormat = {static_cast<PixelFormat>(AkVCam::FourCC_MJPG), 0, 1, nullptr, nullptr, "MJPG"};
-        return &mjpgFormat;
-    }
+    for (auto &format: formats())
+        if (format.str == str)
+            return &format;
+
     return nullptr;
 }
 
-size_t VideoFormatGlobals::offsetNV(size_t plane, size_t width, size_t height)
+size_t AkVCam::VideoFormatGlobals::offsetNV(size_t plane, size_t width, size_t height)
 {
-    size_t offset_arr[] = { // Renamed 'offset' to 'offset_arr'
+    size_t offset[] = {
         0,
         align32(size_t(width)) * height,
         5 * align32(size_t(width)) * height / 4
     };
-    if (plane >= sizeof(offset_arr)/sizeof(offset_arr[0])) return 0;
-    return offset_arr[plane];
+
+    return offset[plane];
 }
 
-size_t VideoFormatGlobals::byplNV(size_t plane, size_t width)
+size_t AkVCam::VideoFormatGlobals::byplNV(size_t plane, size_t width)
 {
     UNUSED(plane);
+
     return align32(size_t(width));
 }
 
-} // namespace AkVCam
-
 std::ostream &operator <<(std::ostream &os, const AkVCam::VideoFormat &format)
 {
-    std::string formatStr = AkVCam::VideoFormat::stringFromFourcc(format.fourcc());
+    auto formatStr = AkVCam::VideoFormat::stringFromFourcc(format.fourcc());
 
     os << "VideoFormat("
-       << (formatStr.empty() ? std::to_string(format.fourcc()) : formatStr)
+       << formatStr
        << ' '
        << format.width()
        << 'x'
-       << format.height();
-    if (!format.frameRates().empty()) {
-         os << ' ' << format.minimumFrameRate();
-    }
-    os << ')';
+       << format.height()
+       << ' '
+       << format.minimumFrameRate()
+       << ')';
 
     return os;
 }
@@ -469,11 +446,11 @@ std::ostream &operator <<(std::ostream &os, const AkVCam::VideoFormats &formats)
     bool writeComma = false;
     os << "VideoFormats(";
 
-    for (auto &format_item: formats) { // Changed 'format' to 'format_item'
+    for (auto &format: formats) {
         if (writeComma)
             os << ", ";
 
-        os << format_item;
+        os << format;
         writeComma = true;
     }
 

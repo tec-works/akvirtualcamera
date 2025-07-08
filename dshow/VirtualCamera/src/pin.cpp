@@ -81,6 +81,7 @@ namespace AkVCam
             LONG m_gamma {0};
             LONG m_hue {0};
             LONG m_colorenable {0};
+            bool m_isSourcingFromPhysicalCamera {false}; // Added flag
 
             void sendFrameOneShot();
             void sendFrameLoop();
@@ -154,6 +155,14 @@ AkVCam::Pin::Pin(BaseFilter *baseFilter,
 
     this->d->m_videoProcAmp->connectPropertyChanged(this->d,
                                                     &PinPrivate::propertyChanged);
+
+    // Check if we are sourcing from a physical camera
+    // Corrected: use the public getter
+    std::string srcCamName = baseFilter->sourceCameraName();
+    if (!srcCamName.empty()) {
+        this->d->m_isSourcingFromPhysicalCamera = true;
+        AkLogInfo() << "Pin for " << baseFilter->deviceId() << " will source from physical camera: " << srcCamName << std::endl;
+    }
 }
 
 AkVCam::Pin::~Pin()
@@ -274,6 +283,12 @@ void AkVCam::Pin::serverStateChanged(IpcBridge::ServerState state)
 void AkVCam::Pin::frameReady(const VideoFrame &frame)
 {
     AkLogFunction();
+
+    if (this->d->m_isSourcingFromPhysicalCamera) {
+        AkLogDebug() << "Sourcing from physical camera, ignoring IPC frame." << std::endl;
+        return;
+    }
+
     AkLogInfo() << "Running: " << this->d->m_running << std::endl;
     AkLogInfo() << "Broadcaster: " << this->d->m_broadcaster << std::endl;
 

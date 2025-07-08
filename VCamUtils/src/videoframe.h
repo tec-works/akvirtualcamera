@@ -74,8 +74,6 @@ namespace AkVCam
                               int contrast,
                               bool gray);
 
-            bool isValid() const; // Added validity check
-
         private:
             VideoFramePrivate *d;
     };

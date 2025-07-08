@@ -101,14 +101,7 @@ std::string AkVCam::Logger::header(int logLevel,
             std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
     char timeStamp[256];
     auto time = std::chrono::system_clock::to_time_t(now);
-    std::tm tm_snapshot;
-#ifdef _WIN32
-    localtime_s(&tm_snapshot, &time);
-#else
-    std::tm* tm_ptr = std::localtime(&time);
-    if (tm_ptr) tm_snapshot = *tm_ptr; else { /* Handle error or init tm_snapshot */ }
-#endif
-    strftime(timeStamp, 256, "%Y-%m-%d %H:%M:%S", &tm_snapshot);
+    strftime(timeStamp, 256, "%Y-%m-%d %H:%M:%S", std::localtime(&time));
     std::stringstream ss;
     ss << "["
        << timeStamp

@@ -352,20 +352,9 @@ void AkVCam::PluginInterface::initializeLogger() const
 
     if (loglevel > AKVCAM_LOGLEVEL_DEFAULT) {
         // Turn on lights
-#ifdef _MSC_VER
-        FILE* p_stdout = nullptr;
-        FILE* p_stderr = nullptr;
-        freopen_s(&p_stdout, "CONOUT$", "a", stdout);
-        freopen_s(&p_stderr, "CONOUT$", "a", stderr);
-        if (p_stdout) setvbuf(p_stdout, NULL, _IONBF, 0); // Check if p_stdout is not null
-        // p_stderr will share the same buffer settings if it's the same underlying stream,
-        // but setvbuf on stderr is also fine.
-        // if (p_stderr) setvbuf(p_stderr, NULL, _IONBF, 0);
-#else
         freopen("CONOUT$", "a", stdout);
         freopen("CONOUT$", "a", stderr);
         setbuf(stdout, nullptr);
-#endif
     }
 
     auto defaultLogFile = AkVCam::tempPath() + "\\" DSHOW_PLUGIN_NAME ".log";

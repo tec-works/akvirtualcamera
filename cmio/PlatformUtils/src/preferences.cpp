@@ -632,6 +632,30 @@ void AkVCam::Preferences::cameraSetControlValue(size_t cameraIndex,
     sync();
 }
 
+std::string AkVCam::Preferences::cameraCustomValue(size_t cameraIndex, const std::string &key)
+{
+    if (cameraIndex >= camerasCount())
+        return {};
+
+    return readString("cameras."
+                      + std::to_string(cameraIndex)
+                      + ".custom."
+                      + key);
+}
+
+void AkVCam::Preferences::cameraSetCustomValue(size_t cameraIndex, const std::string &key, const std::string &value)
+{
+    if (cameraIndex >= camerasCount())
+        return;
+
+    write("cameras."
+          + std::to_string(cameraIndex)
+          + ".custom."
+          + key,
+          value);
+    sync();
+}
+
 std::string AkVCam::Preferences::picture()
 {
     return readString("picture");
