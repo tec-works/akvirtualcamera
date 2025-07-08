@@ -948,7 +948,8 @@ int AkVCam::CmdParserPrivate::addDevice(const StringMap &flags,
     int numVirtualCameras = 1;
     if (!numVirtualCamerasStr.empty()) {
         char *p = nullptr;
-        numVirtualCameras = ::strtol(numVirtualCamerasStr.c_str(), &p, 10); // Use global namespace
+        const char* numStr = numVirtualCamerasStr.c_str();
+        numVirtualCameras = ::strtol(numStr, &p, 10); // Use global namespace + temp var
         if (*p || numVirtualCameras <= 0) {
             std::cerr << "Invalid number of virtual cameras." << std::endl;
             return -EINVAL;
@@ -1233,7 +1234,8 @@ int AkVCam::CmdParserPrivate::addFormat(const StringMap &flags,
     }
 
     char *p = nullptr;
-    auto width = ::strtoul(args[3].c_str(), &p, 10); // Use global namespace
+    const char* widthStr_af = args[3].c_str();
+    auto width = ::strtoul(widthStr_af, &p, 10); // Use global namespace + temp var
 
     if (*p) {
         std::cerr << "Width must be an unsigned integer." << std::endl;
@@ -1242,7 +1244,8 @@ int AkVCam::CmdParserPrivate::addFormat(const StringMap &flags,
     }
 
     p = nullptr;
-    auto height = ::strtoul(args[4].c_str(), &p, 10); // Use global namespace
+    const char* heightStr_af = args[4].c_str();
+    auto height = ::strtoul(heightStr_af, &p, 10); // Use global namespace + temp var
 
     if (*p) {
         std::cerr << "Height must be an unsigned integer." << std::endl;
@@ -1263,7 +1266,8 @@ int AkVCam::CmdParserPrivate::addFormat(const StringMap &flags,
 
     if (!indexStr.empty()) {
         p = nullptr;
-        index = int(::strtoul(indexStr.c_str(), &p, 10)); // Use global namespace
+        const char* indexCStr_af = indexStr.c_str();
+        index = int(::strtoul(indexCStr_af, &p, 10)); // Use global namespace + temp var
 
         if (*p) {
             std::cerr << "Index must be an unsigned integer." << std::endl;
@@ -1300,7 +1304,8 @@ int AkVCam::CmdParserPrivate::removeFormat(const StringMap &flags,
     }
 
     char *p = nullptr;
-    auto index = ::strtoul(args[2].c_str(), &p, 10); // Use global namespace
+    const char* indexCStr_rf = args[2].c_str();
+    auto index = ::strtoul(indexCStr_rf, &p, 10); // Use global namespace + temp var
 
     if (*p) {
         std::cerr << "Index must be an unsigned integer." << std::endl;
@@ -1427,7 +1432,8 @@ int AkVCam::CmdParserPrivate::stream(const AkVCam::StringMap &flags,
     }
 
     char *p = nullptr;
-    auto width = ::strtoul(args[3].c_str(), &p, 10); // Use global namespace
+    const char* widthStr_s = args[3].c_str();
+    auto width = ::strtoul(widthStr_s, &p, 10); // Use global namespace + temp var
 
     if (*p) {
         std::cerr << "Width must be an unsigned integer." << std::endl;
@@ -1436,7 +1442,8 @@ int AkVCam::CmdParserPrivate::stream(const AkVCam::StringMap &flags,
     }
 
     p = nullptr;
-    auto height = ::strtoul(args[4].c_str(), &p, 10); // Use global namespace
+    const char* heightStr_s = args[4].c_str();
+    auto height = ::strtoul(heightStr_s, &p, 10); // Use global namespace + temp var
 
     if (*p) {
         std::cerr << "Height must be an unsigned integer." << std::endl;
@@ -1449,7 +1456,8 @@ int AkVCam::CmdParserPrivate::stream(const AkVCam::StringMap &flags,
 
     if (!fpsStr.empty()) {
         p = nullptr;
-        fps = int(::strtod(fpsStr.c_str(), &p)); // Use global namespace
+        const char* fpsCStr = fpsStr.c_str();
+        fps = int(::strtod(fpsCStr, &p)); // Use global namespace + temp var
 
         if (*p) {
             if (!Fraction::isFraction(fpsStr)) {
@@ -1775,7 +1783,8 @@ int AkVCam::CmdParserPrivate::writeControls(const StringMap &flags,
                     switch (control.type) {
                     case ControlTypeInteger: {
                         char *p = nullptr;
-                        auto val = ::strtol(value.c_str(), &p, 10); // Use global namespace
+                        const char* valStr = value.c_str();
+                        auto val = ::strtol(valStr, &p, 10); // Use global namespace + temp var
 
                         if (*p) {
                             std::cerr << "Value at argument "
@@ -1818,7 +1827,8 @@ int AkVCam::CmdParserPrivate::writeControls(const StringMap &flags,
 
                     case ControlTypeMenu: {
                         char *p = nullptr;
-                        auto val = ::strtoul(value.c_str(), &p, 10); // Use global namespace
+                        const char* valStr_wc = value.c_str();
+                        auto val = ::strtoul(valStr_wc, &p, 10); // Use global namespace + temp var
 
                         if (*p) {
                             auto it = std::find(control.menu.begin(),
@@ -1933,7 +1943,8 @@ int AkVCam::CmdParserPrivate::setLogLevel(const AkVCam::StringMap &flags,
 
     auto levelStr = args[1];
     char *p = nullptr;
-    auto level = ::strtol(levelStr.c_str(), &p, 10); // Use global namespace
+    const char* levelCStr = levelStr.c_str();
+    auto level = ::strtol(levelCStr, &p, 10); // Use global namespace + temp var
 
     if (*p)
         level = AkVCam::Logger::levelFromString(levelStr);
@@ -2413,12 +2424,13 @@ void AkVCam::CmdParserPrivate::loadGenerals(Settings &settings)
         this->m_ipcBridge.setPicture(settings.value("default_frame"));
 
     if (settings.contains("loglevel")) {
-        auto logLevel= settings.value("loglevel");
+        auto logLevelStr = settings.value("loglevel"); // Renamed to avoid conflict with 'level' var
         char *p = nullptr;
-        auto level = ::strtol(logLevel.c_str(), &p, 10); // Use global namespace
+        const char* logLevelCStr = logLevelStr.c_str();
+        auto level = ::strtol(logLevelCStr, &p, 10); // Use global namespace + temp var
 
         if (*p)
-            level = AkVCam::Logger::levelFromString(logLevel);
+            level = AkVCam::Logger::levelFromString(logLevelStr);
 
         this->m_ipcBridge.setLogLevel(level);
     }
@@ -2470,9 +2482,11 @@ std::vector<AkVCam::VideoFormat> AkVCam::CmdParserPrivate::readFormat(Settings &
     for (auto &format_list: this->matrixCombine(formatMatrix)) {
         auto pixFormat = VideoFormat::fourccFromString(format_list[0]);
         char *p = nullptr;
-        auto width = ::strtol(format_list[1].c_str(), &p, 10); // Use global namespace
+        const char* widthStr = format_list[1].c_str();
+        auto width = ::strtol(widthStr, &p, 10); // Use global namespace + temp var
         p = nullptr;
-        auto height = ::strtol(format_list[2].c_str(), &p, 10); // Use global namespace
+        const char* heightStr = format_list[2].c_str();
+        auto height = ::strtol(heightStr, &p, 10); // Use global namespace + temp var
         Fraction frame_rate(format_list[3]);
         VideoFormat format(pixFormat,
                            width,
@@ -2580,7 +2594,8 @@ std::vector<AkVCam::VideoFormat> AkVCam::CmdParserPrivate::readDeviceFormats(Set
 
     for (auto &indexStr: formatsIndex) {
         char *p = nullptr;
-        auto index = ::strtoul(indexStr.c_str(), &p, 10); // Use global namespace
+        const char* indexCStr_rdf = indexStr.c_str();
+        auto index = ::strtoul(indexCStr_rdf, &p, 10); // Use global namespace + temp var
 
         if (*p)
             continue;
