@@ -17,6 +17,7 @@
  * Web-Site: http://webcamoid.github.io/
  */
 
+#include <initguid.h> // Should be included once per project before dshow.h
 #include "plugin.h"
 #include "plugininterface.h"
 #include "classfactory.h"

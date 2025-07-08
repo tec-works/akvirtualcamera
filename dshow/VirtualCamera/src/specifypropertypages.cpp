@@ -19,8 +19,8 @@
 
 #include <vector>
 #include <ddraw.h>
-#include <initguid.h>
-#include <uuids.h>
+// #include <initguid.h> // Removed: Should be in one .cpp file only (e.g., plugin.cpp)
+#include <uuids.h> // This is fine, it declares GUIDs. <dshow.h> usually includes it.
 
 #include "specifypropertypages.h"
 #include "basefilter.h"

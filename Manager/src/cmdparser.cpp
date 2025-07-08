@@ -26,6 +26,7 @@
 #include <cstring>
 #include <iostream>
 #include <functional>
+#include <cstdlib> // For std::strtol, std::strtod
 #include <locale>
 #include <sstream>
 #include <thread>

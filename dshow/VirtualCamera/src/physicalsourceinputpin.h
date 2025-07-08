@@ -4,13 +4,14 @@
 #include <dshow.h>
 #include <string>
 #include <vector>
-#include "VCamUtils/src/videoframe.h" // For AkVCam::VideoFrame if needed for internal buffering
+// #include "VCamUtils/src/videoframe.h" // AkVCam::VideoFormat is forward declared here
+#include "VCamUtils/src/videoformat.h" // Include full definition for AkVCam::VideoFormat
 #include "cunknown.h" // For CUnknown base
 
 // Forward declaration
 namespace AkVCam {
     class BaseFilter;
-    class VideoFormat; // If VideoFormat is used
+    // class VideoFormat; // Full definition included above
 }
 
 namespace AkVCam
@@ -21,12 +22,12 @@ namespace AkVCam
         PhysicalSourceInputPin(BaseFilter* pFilter, HRESULT* phr, LPCWSTR pPinName);
         virtual ~PhysicalSourceInputPin();
 
-        DECLARE_IUNKNOWN_NQ
+        DECLARE_IUNKNOWN_NQ // This handles AddRef, Release, QueryInterface (basic version)
 
         // IUnknown methods
+        // QueryInterface is often overridden for specific interfaces, AddRef/Release usually taken from CUnknown.
         STDMETHODIMP QueryInterface(REFIID riid, void **ppv) override;
-        STDMETHODIMP_(ULONG) AddRef() override { return CUnknown::AddRef(); }
-        STDMETHODIMP_(ULONG) Release() override { return CUnknown::Release(); }
+        // AddRef & Release are now solely from DECLARE_IUNKNOWN_NQ / CUnknown
 
         // IPin methods
         STDMETHODIMP Connect(IPin *pReceivePin, const AM_MEDIA_TYPE *pmt) override;
@@ -50,6 +51,7 @@ namespace AkVCam
         STDMETHODIMP NotifyAllocator(IMemAllocator *pAllocator, BOOL bReadOnly) override;
         STDMETHODIMP GetAllocatorRequirements(ALLOCATOR_PROPERTIES *pProps) override;
         STDMETHODIMP Receive(IMediaSample *pSample) override;
+        STDMETHODIMP ReceiveMultiple(IMediaSample **pSamples, LONG nSamples, LONG *nSamplesProcessed) override;
         STDMETHODIMP ReceiveCanBlock() override;
 
         // Helper methods

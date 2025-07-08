@@ -336,6 +336,33 @@ STDMETHODIMP PhysicalSourceInputPin::ReceiveCanBlock()
     return S_FALSE;
 }
 
+STDMETHODIMP PhysicalSourceInputPin::ReceiveMultiple(IMediaSample **pSamples, LONG nSamples, LONG *nSamplesProcessed)
+{
+    AkLogFunction();
+    if (!pSamples || !nSamplesProcessed) return E_POINTER;
+
+    *nSamplesProcessed = 0;
+    if (nSamples <= 0) return S_OK; // No samples to process
+
+    // This basic implementation will process one sample at a time by calling Receive.
+    // A more optimized version might handle multiple samples if possible, but
+    // for many source-like scenarios, one-by-one is sufficient.
+    HRESULT hr = S_OK;
+    for (LONG i = 0; i < nSamples; ++i) {
+        hr = Receive(pSamples[i]);
+        if (SUCCEEDED(hr)) {
+            (*nSamplesProcessed)++;
+        } else {
+            // If one sample fails, we might stop or continue.
+            // For now, stop and report the error for that sample.
+            AkLogError() << "Error receiving sample " << i << " in ReceiveMultiple. HR: " << hr << std::endl;
+            break;
+        }
+    }
+    return hr; // Return status of the last Receive call or first error
+}
+
+
 // Helper methods
 HRESULT PhysicalSourceInputPin::CheckMediaType(const AM_MEDIA_TYPE* pmt)
 {

@@ -282,7 +282,7 @@ void AkVCam::BaseFilter::InitializeSourceCamera() {
         return;
     }
 
-    HRESULT hr;
+    // HRESULT hr; // Removed redeclaration, hr is already in scope from the outer block of this function.
     // Create the Filter Graph Manager for the physical camera
     hr = CoCreateInstance(CLSID_FilterGraph, nullptr, CLSCTX_INPROC_SERVER, IID_IGraphBuilder, (void**)&m_pPhysicalSourceGraphBuilder);
     if (FAILED(hr) || !m_pPhysicalSourceGraphBuilder) {
