@@ -56,6 +56,8 @@ add_library(VirtualCamera SHARED
             src/persistpropertybag.h
             src/pin.cpp
             src/pin.h
+            src/physicalsourceinputpin.cpp # Added
+            src/physicalsourceinputpin.h   # Added header for completeness, though not strictly needed by add_library for headers
             src/plugin.cpp
             src/plugin.h
             src/plugininterface.cpp

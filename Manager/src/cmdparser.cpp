@@ -948,7 +948,7 @@ int AkVCam::CmdParserPrivate::addDevice(const StringMap &flags,
     int numVirtualCameras = 1;
     if (!numVirtualCamerasStr.empty()) {
         char *p = nullptr;
-        numVirtualCameras = std::strtol(numVirtualCamerasStr.c_str(), &p, 10);
+        numVirtualCameras = (std::strtol)(numVirtualCamerasStr.c_str(), &p, 10); // Forced function call syntax
         if (*p || numVirtualCameras <= 0) {
             std::cerr << "Invalid number of virtual cameras." << std::endl;
             return -EINVAL;
@@ -1449,7 +1449,7 @@ int AkVCam::CmdParserPrivate::stream(const AkVCam::StringMap &flags,
 
     if (!fpsStr.empty()) {
         p = nullptr;
-        fps = int(strtod(fpsStr.c_str(), &p));
+        fps = int((std::strtod)(fpsStr.c_str(), &p)); // Forced function call syntax
 
         if (*p) {
             if (!Fraction::isFraction(fpsStr)) {
@@ -1775,7 +1775,7 @@ int AkVCam::CmdParserPrivate::writeControls(const StringMap &flags,
                     switch (control.type) {
                     case ControlTypeInteger: {
                         char *p = nullptr;
-                        auto val = strtol(value.c_str(), &p, 10);
+                        auto val = (std::strtol)(value.c_str(), &p, 10); // Forced function call syntax
 
                         if (*p) {
                             std::cerr << "Value at argument "
@@ -1933,7 +1933,7 @@ int AkVCam::CmdParserPrivate::setLogLevel(const AkVCam::StringMap &flags,
 
     auto levelStr = args[1];
     char *p = nullptr;
-    auto level = strtol(levelStr.c_str(), &p, 10);
+    auto level = (std::strtol)(levelStr.c_str(), &p, 10); // Forced function call syntax
 
     if (*p)
         level = AkVCam::Logger::levelFromString(levelStr);
@@ -2415,7 +2415,7 @@ void AkVCam::CmdParserPrivate::loadGenerals(Settings &settings)
     if (settings.contains("loglevel")) {
         auto logLevel= settings.value("loglevel");
         char *p = nullptr;
-        auto level = strtol(logLevel.c_str(), &p, 10);
+        auto level = (std::strtol)(logLevel.c_str(), &p, 10); // Forced function call syntax
 
         if (*p)
             level = AkVCam::Logger::levelFromString(logLevel);
@@ -2470,9 +2470,9 @@ std::vector<AkVCam::VideoFormat> AkVCam::CmdParserPrivate::readFormat(Settings &
     for (auto &format_list: this->matrixCombine(formatMatrix)) {
         auto pixFormat = VideoFormat::fourccFromString(format_list[0]);
         char *p = nullptr;
-        auto width = strtol(format_list[1].c_str(), &p, 10);
+        auto width = (std::strtol)(format_list[1].c_str(), &p, 10); // Forced function call syntax
         p = nullptr;
-        auto height = strtol(format_list[2].c_str(), &p, 10);
+        auto height = (std::strtol)(format_list[2].c_str(), &p, 10); // Forced function call syntax
         Fraction frame_rate(format_list[3]);
         VideoFormat format(pixFormat,
                            width,
