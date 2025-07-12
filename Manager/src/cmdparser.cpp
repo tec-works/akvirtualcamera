@@ -37,9 +37,11 @@
 #ifdef _WIN32
 #include <fcntl.h>
 #include <io.h>
-#define NOMINMAX // Prevent min/max macro conflicts with std::numeric_limits
+#ifndef NOMINMAX // Defend against redefinition
+#define NOMINMAX
+#endif
 #include <dshow.h>
-#include "PlatformUtils/src/utils.h" // For AkVCam::stringFromWSTR (used in Windows specific code)
+// #include "PlatformUtils/src/utils.h" // Removed: VCamUtils/src/utils.h should be used or delegate.
 #pragma comment(lib, "strmiids")
 #elif defined(__linux__)
 #include <fcntl.h>
@@ -56,6 +58,7 @@
 #include "VCamUtils/src/videoframe.h"
 #include "VCamUtils/src/fraction.h" // Added for Fraction class
 #include "VCamUtils/src/logger.h"
+#include "VCamUtils/src/utils.h" // For stringFromWSTR and other general utilities
 
 #define COMMONS_PROJECT_COMMIT_URL "https://github.com/webcamoid/akvirtualcamera/commit"
 
