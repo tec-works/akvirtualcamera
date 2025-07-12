@@ -39,6 +39,7 @@
 #include <io.h>
 #define NOMINMAX // Prevent min/max macro conflicts with std::numeric_limits
 #include <dshow.h>
+#include "PlatformUtils/src/utils.h" // For AkVCam::stringFromWSTR (used in Windows specific code)
 #pragma comment(lib, "strmiids")
 #elif defined(__linux__)
 #include <fcntl.h>
