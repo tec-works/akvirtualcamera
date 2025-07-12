@@ -18,10 +18,14 @@
 
 cmake_minimum_required(VERSION 3.5)
 
-project(Manager LANGUAGES CXX)
+project(Manager LANGUAGES CXX OBJCXX)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_OBJCXX_STANDARD 11)
+set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
+
 
 if (APPLE)
     include(../cmio/cmio.cmake)
@@ -36,13 +40,15 @@ add_executable(Manager
                src/main.cpp
                src/cmdparser.cpp
                $<$<PLATFORM_ID:Darwin>:src/macos_camera_lister.mm>)
-target_include_directories(Manager PRIVATE ${CMAKE_SOURCE_DIR}) # Added to resolve include paths
+
+target_include_directories(Manager PRIVATE ${CMAKE_SOURCE_DIR})
+
 set_target_properties(Manager PROPERTIES
                       OUTPUT_NAME AkVCamManager
                       RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build/${INSTALLPATH})
+
 add_dependencies(Manager VCamIPC PlatformUtils VCamUtils)
-target_include_directories(Manager
-                           PRIVATE ..)
+
 target_link_libraries(Manager
                       VCamIPC
                       PlatformUtils
