@@ -2641,4 +2641,3 @@ AkVCam::CmdParserCommand::CmdParserCommand(const std::string &command,
 {
 }
 
-[end of Manager/src/cmdparser.cpp]
