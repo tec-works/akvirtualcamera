@@ -2347,8 +2347,8 @@ int AkVCam::CmdParserPrivate::listPhysicalCamerasHandler(const AkVCam::StringMap
             VariantInit(&varName);
             hr = pPropBag->Read(L"FriendlyName", &varName, nullptr);
             if (SUCCEEDED(hr)) {
-                // Use AkVCam::stringFromWSTR for safe conversion
-                std::string cameraName = AkVCam::stringFromWSTR(varName.bstrVal);
+                // Use stringFromWSTR from global namespace
+                std::string cameraName = stringFromWSTR(varName.bstrVal);
                 std::cout << "  - " << cameraName << std::endl;
             }
             VariantClear(&varName);

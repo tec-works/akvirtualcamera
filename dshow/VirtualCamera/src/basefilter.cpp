@@ -237,8 +237,8 @@ void AkVCam::BaseFilter::InitializeSourceCamera() {
             VariantInit(&varName);
             hr = pPropBag->Read(L"FriendlyName", &varName, nullptr);
             if (SUCCEEDED(hr)) {
-                // Use AkVCam::stringFromWSTR for safe conversion
-                std::string friendlyName = AkVCam::stringFromWSTR(varName.bstrVal);
+                // Use stringFromWSTR from global namespace
+                std::string friendlyName = stringFromWSTR(varName.bstrVal);
                 VariantClear(&varName);
 
                 if (friendlyName == m_sourceCameraName) {
