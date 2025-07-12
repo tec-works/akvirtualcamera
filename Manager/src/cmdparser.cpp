@@ -1260,11 +1260,11 @@ int AkVCam::CmdParserPrivate::addFormat(const StringMap &flags,
     //     std::cerr << "Width must be an unsigned integer." << std::endl;
     //     return -EINVAL;
     // }
-    // if (*p) { // This check is from strtoul
+    // if (*p_height) { // This check is from strtoul for height
     //     std::cerr << "Height must be an unsigned integer." << std::endl;
-
-        return -EINVAL;
-    }
+    //     return -EINVAL; // This is the correct return for the height check
+    // }
+    // Stray return and brace removed from here
 
     Fraction fps(args[5]);
 
