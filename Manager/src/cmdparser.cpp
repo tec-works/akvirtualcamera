@@ -578,31 +578,27 @@ const std::map<AkVCam::ControlType, std::string> &AkVCam::CmdParserPrivate::type
 
 std::string AkVCam::CmdParserPrivate::basename(const std::string &path)
 {
-    auto rit =
-            std::find_if(path.rbegin(),
-                         path.rend(),
-                         [] (char c) -> bool {
-        return c == '/' || c == '\\';
-    });
+    // Find the last separator ('/' or '\')
+    size_t last_slash_pos = path.find_last_of("/\\");
+    std::string filename;
 
-    auto program =
-            rit == path.rend()?
-                path:
-                path.substr(path.size() + size_t(path.rbegin() - rit));
+    if (std::string::npos != last_slash_pos) {
+        // If a separator is found, take the part of the string after it
+        filename = path.substr(last_slash_pos + 1);
+    } else {
+        // Otherwise, the whole path is the filename
+        filename = path;
+    }
 
-    auto it =
-            std::find_if(program.begin(),
-                         program.end(),
-                         [] (char c) -> bool {
-        return c == '.';
-    });
+    // Find the last dot in the resulting filename
+    size_t last_dot_pos = filename.find_last_of('.');
+    if (std::string::npos != last_dot_pos) {
+        // If a dot is found, return the part of the string before it
+        return filename.substr(0, last_dot_pos);
+    }
 
-    program =
-            it == path.end()?
-                program:
-                program.substr(0, size_t(it - program.begin()));
-
-    return program;
+    // If there's no dot, return the whole filename
+    return filename;
 }
 
 void AkVCam::CmdParserPrivate::printFlags(const std::vector<CmdParserFlags> &cmdFlags,

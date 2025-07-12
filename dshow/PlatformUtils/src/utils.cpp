@@ -299,12 +299,12 @@ std::string AkVCam::stringFromWSTR(LPCWSTR wstr)
     if (len < 1)
         return {};
 
-    auto cstr = new CHAR[len + 1];
+    auto cstr = new CHAR[len];
 
     if (!cstr)
         return {};
 
-    memset(cstr, 0, size_t(len + 1) * sizeof(CHAR));
+    memset(cstr, 0, size_t(len) * sizeof(CHAR));
     WideCharToMultiByte(CP_ACP,
                         0,
                         wstr,
@@ -331,13 +331,13 @@ LPWSTR AkVCam::stringToWSTR(const std::string &str)
     if (len < 1)
         return nullptr;
 
-    auto wstr = reinterpret_cast<LPWSTR>(CoTaskMemAlloc(size_t(len + 1)
+    auto wstr = reinterpret_cast<LPWSTR>(CoTaskMemAlloc(size_t(len)
                                                         * sizeof(WCHAR)));
 
     if (!wstr)
         return nullptr;
 
-    memset(wstr, 0, size_t(len + 1) * sizeof(WCHAR));
+    memset(wstr, 0, size_t(len) * sizeof(WCHAR));
     MultiByteToWideChar(CP_ACP,
                         0,
                         str.c_str(),
