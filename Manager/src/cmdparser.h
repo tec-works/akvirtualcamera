@@ -51,7 +51,6 @@ namespace AkVCam {
             void addFlags(const std::string &command,
                           const StringVector &flags,
                           const std::string &helpString);
-            int listPhysicalCameras(const StringMap &flags, const StringVector &args);
 
         private:
             CmdParserPrivate *d;

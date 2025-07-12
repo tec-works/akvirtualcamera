@@ -26,10 +26,10 @@
 #include <cstring>
 #include <iostream>
 #include <functional>
-#include <cstdlib> // For ::strtol, ::strtod (though we are moving to std::stoX)
-#include <string> // For std::stoi, std::stod, std::stoul, std::getline
-#include <stdexcept> // For std::invalid_argument, std::out_of_range
-#include <limits> // For std::numeric_limits
+#include <cstdlib>
+#include <string>
+#include <stdexcept>
+#include <limits>
 #include <locale>
 #include <sstream>
 #include <thread>
@@ -37,18 +37,17 @@
 #ifdef _WIN32
 #include <fcntl.h>
 #include <io.h>
-#ifndef NOMINMAX // Defend against redefinition
+#ifndef NOMINMAX
 #define NOMINMAX
 #endif
 #include <dshow.h>
-// #include "PlatformUtils/src/utils.h" // Removed: VCamUtils/src/utils.h should be used or delegate.
+#include "PlatformUtils/src/utils.h"
 #pragma comment(lib, "strmiids")
 #elif defined(__linux__)
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <linux/videodev2.h>
-#include <unistd.h> // For close()
-#include <cerrno>  // For errno
+#include <unistd.h>
 #endif
 
 #include "cmdparser.h"
@@ -56,9 +55,9 @@
 #include "VCamUtils/src/settings.h"
 #include "VCamUtils/src/videoformat.h"
 #include "VCamUtils/src/videoframe.h"
-#include "VCamUtils/src/fraction.h" // Added for Fraction class
+#include "VCamUtils/src/fraction.h"
 #include "VCamUtils/src/logger.h"
-#include "VCamUtils/src/utils.h" // For stringFromWSTR and other general utilities
+#include "VCamUtils/src/utils.h"
 
 #define COMMONS_PROJECT_COMMIT_URL "https://github.com/webcamoid/akvirtualcamera/commit"
 
@@ -787,7 +786,7 @@ bool AkVCam::CmdParserPrivate::containsFlag(const StringMap &flags,
     return false;
 }
 
-std::string AkVCam::CmdParserPrivate::flagValue(const AkVCam::StringMap &flags,
+std::string AkVCam::CmdParserPrivate::flagValue(const StringMap &flags,
                                                 const std::string &command,
                                                 const std::string &flagAlias)
 {
@@ -1242,34 +1241,21 @@ int AkVCam::CmdParserPrivate::addFormat(const StringMap &flags,
         return -EINVAL;
     }
 
-    unsigned long width = 0, height = 0;
-    try {
-        size_t p_idx_w = 0, p_idx_h = 0;
-        width = std::stoul(args[3], &p_idx_w);
-        if (p_idx_w != args[3].length()) {
-            std::cerr << "Width value has trailing characters: " << args[3] << std::endl;
-            return -EINVAL;
-        }
-        height = std::stoul(args[4], &p_idx_h);
-        if (p_idx_h != args[4].length()) {
-            std::cerr << "Height value has trailing characters: " << args[4] << std::endl;
-            return -EINVAL;
-        }
-    } catch (const std::exception& e) {
-        std::cerr << "Error parsing width/height for addFormat: " << e.what() << std::endl;
+    char *p_width = nullptr;
+    const char* widthStr_af = args[3].c_str();
+    auto width = ::strtoul(widthStr_af, &p_width, 10);
+    if (*p_width) {
+        std::cerr << "Width must be an unsigned integer." << std::endl;
         return -EINVAL;
     }
 
-    // No need to check *p anymore with stoX functions, exception handling covers it.
-    // if (*p) { // This check is from strtoul
-    //     std::cerr << "Width must be an unsigned integer." << std::endl;
-    //     return -EINVAL;
-    // }
-    // if (*p_height) { // This check is from strtoul for height
-    //     std::cerr << "Height must be an unsigned integer." << std::endl;
-    //     return -EINVAL; // This is the correct return for the height check
-    // }
-    // Stray return and brace removed from here
+    char *p_height = nullptr;
+    const char* heightStr_af = args[4].c_str();
+    auto height = ::strtoul(heightStr_af, &p_height, 10);
+    if (*p_height) {
+        std::cerr << "Height must be an unsigned integer." << std::endl;
+        return -EINVAL;
+    }
 
     Fraction fps(args[5]);
 
@@ -1326,23 +1312,27 @@ int AkVCam::CmdParserPrivate::removeFormat(const StringMap &flags,
         return -ENODEV;
     }
 
-    char *p = nullptr;
-    const char* indexCStr_rf = args[2].c_str();
-    unsigned long index_val = ::strtoul(indexCStr_rf, &p, 10);
-
-    if (*p) {
-        std::cerr << "Index must be an unsigned integer." << std::endl;
+    unsigned long index_ul = 0;
+    try {
+        size_t p_idx = 0;
+        index_ul = std::stoul(args[2], &p_idx);
+        if (p_idx != args[2].length()) {
+            std::cerr << "Index for removeFormat has trailing characters: " << args[2] << std::endl;
+            return -EINVAL;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Error parsing index for removeFormat: " << e.what() << " for value " << args[2] << std::endl;
         return -EINVAL;
     }
 
     auto formats = this->m_ipcBridge.formats(deviceId);
 
-    if (index_val >= formats.size()) {
+    if (index_ul >= formats.size()) {
         std::cerr << "Index is out of range." << std::endl;
         return -ERANGE;
     }
 
-    this->m_ipcBridge.removeFormat(deviceId, static_cast<int>(index_val));
+    this->m_ipcBridge.removeFormat(deviceId, static_cast<int>(index_ul));
 
     return 0;
 }
@@ -1907,7 +1897,7 @@ int AkVCam::CmdParserPrivate::setPicture(const AkVCam::StringMap &flags,
 }
 
 int AkVCam::CmdParserPrivate::logLevel(const AkVCam::StringMap &flags,
-                                       const AkVCam::StringVector &args)
+                                       const StringVector &args)
 {
     UNUSED(flags);
     UNUSED(args);
@@ -1934,12 +1924,20 @@ int AkVCam::CmdParserPrivate::setLogLevel(const AkVCam::StringMap &flags,
     }
 
     auto levelStr = args[1];
-    char *p = nullptr;
-    const char* levelCStr = levelStr.c_str();
-    auto level = ::strtol(levelCStr, &p, 10);
-
-    if (*p) // If not all characters were consumed by strtol, it's a string label
+    long level = 0; // Default or indicate error
+    try {
+        size_t p_idx = 0;
+        level = std::stol(levelStr, &p_idx);
+        if (p_idx != levelStr.length()) { // Not all chars consumed, try parsing as string
+            level = AkVCam::Logger::levelFromString(levelStr);
+        }
+    } catch (const std::invalid_argument& ia) { // Not a number, try parsing as string
         level = AkVCam::Logger::levelFromString(levelStr);
+    } catch (const std::out_of_range& oor) {
+        std::cerr << "Log level number out of range: " << oor.what() << std::endl;
+        // Keep default level or set to a specific error/default level
+        level = AkVCam::Logger::levelFromString("info"); // Fallback to a default level
+    }
 
     this->m_ipcBridge.setLogLevel(level);
 
@@ -2646,3 +2644,5 @@ AkVCam::CmdParserCommand::CmdParserCommand(const std::string &command,
     advanced(advanced)
 {
 }
+
+[end of Manager/src/cmdparser.cpp]
