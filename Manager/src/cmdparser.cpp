@@ -37,6 +37,7 @@
 #ifdef _WIN32
 #include <fcntl.h>
 #include <io.h>
+#define NOMINMAX // Prevent min/max macro conflicts with std::numeric_limits
 #include <dshow.h>
 #pragma comment(lib, "strmiids")
 #elif defined(__linux__)
@@ -2342,8 +2343,8 @@ int AkVCam::CmdParserPrivate::listPhysicalCamerasHandler(const AkVCam::StringMap
             VariantInit(&varName);
             hr = pPropBag->Read(L"FriendlyName", &varName, nullptr);
             if (SUCCEEDED(hr)) {
-                std::wstring ws(varName.bstrVal, SysStringLen(varName.bstrVal));
-                std::string cameraName(ws.begin(), ws.end());
+                // Use AkVCam::stringFromWSTR for safe conversion
+                std::string cameraName = AkVCam::stringFromWSTR(varName.bstrVal);
                 std::cout << "  - " << cameraName << std::endl;
             }
             VariantClear(&varName);
