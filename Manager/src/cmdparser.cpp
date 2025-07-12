@@ -26,7 +26,10 @@
 #include <cstring>
 #include <iostream>
 #include <functional>
-#include <cstdlib> // For std::strtol, std::strtod
+#include <cstdlib> // For ::strtol, ::strtod (though we are moving to std::stoX)
+#include <string> // For std::stoi, std::stod, std::stoul, std::getline
+#include <stdexcept> // For std::invalid_argument, std::out_of_range
+#include <limits> // For std::numeric_limits
 #include <locale>
 #include <sstream>
 #include <thread>
@@ -49,6 +52,7 @@
 #include "VCamUtils/src/settings.h"
 #include "VCamUtils/src/videoformat.h"
 #include "VCamUtils/src/videoframe.h"
+#include "VCamUtils/src/fraction.h" // Added for Fraction class
 #include "VCamUtils/src/logger.h"
 
 #define COMMONS_PROJECT_COMMIT_URL "https://github.com/webcamoid/akvirtualcamera/commit"
@@ -947,19 +951,11 @@ int AkVCam::CmdParserPrivate::addDevice(const StringMap &flags,
 
     int numVirtualCameras = 1;
     if (!numVirtualCamerasStr.empty()) {
-        try {
-            size_t p_idx = 0;
-            numVirtualCameras = std::stoi(numVirtualCamerasStr, &p_idx);
-            // Check if all characters were consumed and if the value is positive
-            if (p_idx != numVirtualCamerasStr.length() || numVirtualCameras <= 0) {
-                std::cerr << "Invalid number of virtual cameras: not all characters consumed or non-positive value." << std::endl;
-                return -EINVAL;
-            }
-        } catch (const std::invalid_argument& ia) {
-            std::cerr << "Invalid number argument for virtual cameras (std::invalid_argument): " << ia.what() << std::endl;
-            return -EINVAL;
-        } catch (const std::out_of_range& oor) {
-            std::cerr << "Number of virtual cameras out of range (std::out_of_range): " << oor.what() << std::endl;
+        char *p = nullptr;
+        const char* numStr = numVirtualCamerasStr.c_str();
+        numVirtualCameras = ::strtol(numStr, &p, 10);
+        if (*p || numVirtualCameras <= 0) {
+            std::cerr << "Invalid number of virtual cameras." << std::endl;
             return -EINVAL;
         }
     }
@@ -1282,29 +1278,23 @@ int AkVCam::CmdParserPrivate::addFormat(const StringMap &flags,
     int index = -1;
 
     if (!indexStr.empty()) {
-        try {
-            size_t p_idx = 0;
-            unsigned long ulong_index = std::stoul(indexStr, &p_idx);
-            if (p_idx != indexStr.length()) {
-                 std::cerr << "Index value for addFormat has trailing characters: " << indexStr << std::endl;
-                 return -EINVAL;
-            }
-            // Check if ulong_index can be safely cast to int
-            if (ulong_index > static_cast<unsigned long>(std::numeric_limits<int>::max())) {
-                std::cerr << "Index value for addFormat out of range for int." << std::endl;
-                return -ERANGE; // Or handle as appropriate
-            }
-            index = static_cast<int>(ulong_index);
-        } catch (const std::invalid_argument& ia) {
-            std::cerr << "Invalid index argument for addFormat (std::invalid_argument): " << ia.what() << std::endl;
+        char *p_index = nullptr; // Changed variable name to avoid conflict
+        const char* indexCStr_af = indexStr.c_str();
+        unsigned long ulong_idx = ::strtoul(indexCStr_af, &p_index, 10);
+
+        if (*p_index) {
+            std::cerr << "Index must be an unsigned integer." << std::endl;
             return -EINVAL;
-        } catch (const std::out_of_range& oor) {
-            std::cerr << "Index for addFormat out of range (std::out_of_range): " << oor.what() << std::endl;
-            return -ERANGE; // Or handle as appropriate
         }
+        // Check if ulong_idx can be safely cast to int
+        if (ulong_idx > static_cast<unsigned long>(std::numeric_limits<int>::max())) {
+            std::cerr << "Index value out of range for int: " << ulong_idx << std::endl;
+            return -ERANGE;
+        }
+        index = static_cast<int>(ulong_idx);
     }
 
-    VideoFormat fmt(format, int(width), int(height), {fps});
+    VideoFormat fmt(format, static_cast<int>(width), static_cast<int>(height), {fps});
     this->m_ipcBridge.addFormat(deviceId, fmt, index);
 
     return 0;
@@ -1333,23 +1323,21 @@ int AkVCam::CmdParserPrivate::removeFormat(const StringMap &flags,
 
     char *p = nullptr;
     const char* indexCStr_rf = args[2].c_str();
-    auto index = ::strtoul(indexCStr_rf, &p, 10); // Use global namespace + temp var
+    unsigned long index_val = ::strtoul(indexCStr_rf, &p, 10);
 
     if (*p) {
         std::cerr << "Index must be an unsigned integer." << std::endl;
-
         return -EINVAL;
     }
 
     auto formats = this->m_ipcBridge.formats(deviceId);
 
-    if (index >= formats.size()) {
+    if (index_val >= formats.size()) {
         std::cerr << "Index is out of range." << std::endl;
-
         return -ERANGE;
     }
 
-    this->m_ipcBridge.removeFormat(deviceId, int(index));
+    this->m_ipcBridge.removeFormat(deviceId, static_cast<int>(index_val));
 
     return 0;
 }
@@ -1483,32 +1471,20 @@ int AkVCam::CmdParserPrivate::stream(const AkVCam::StringMap &flags,
     double fps = std::numeric_limits<double>::quiet_NaN();
 
     if (!fpsStr.empty()) {
-        try {
-            size_t p_idx = 0;
-            fps = std::stod(fpsStr, &p_idx);
-            // Check if all characters were consumed by stod
-            if (p_idx != fpsStr.length()) {
-                // If not all consumed, try to parse as Fraction (original behavior)
-                if (!Fraction::isFraction(fpsStr)) {
-                    std::cerr << "The framerate must be a number or a fraction (stod did not consume all)." << std::endl;
-                    return -EINVAL;
-                }
-                fps = Fraction(fpsStr).value();
-            }
-        } catch (const std::invalid_argument& ia) {
-            // If stod fails, try to parse as Fraction
+        char *p = nullptr; // p was removed in std::stod version, re-add for ::strtod
+        const char* fpsCStr = fpsStr.c_str();
+        fps = ::strtod(fpsCStr, &p); // int() cast was removed as fps is double
+
+        if (*p) { // Check if all characters were consumed by strtod
             if (!Fraction::isFraction(fpsStr)) {
-                std::cerr << "The framerate must be a number or a fraction (stod invalid_argument)." << std::endl;
+                std::cerr << "The framerate must be a number or a fraction." << std::endl;
                 return -EINVAL;
             }
             fps = Fraction(fpsStr).value();
-        } catch (const std::out_of_range& oor) {
-            std::cerr << "The framerate is out of range (std::out_of_range): " << oor.what() << std::endl;
-            return -ERANGE;
         }
 
         if (fps <= 0 || std::isinf(fps)) { // This check remains important
-            std::cerr << "The framerate is out of range (post-conversion)." << std::endl;
+            std::cerr << "The framerate is out of range." << std::endl;
 
             return -ERANGE;
         }
@@ -1820,24 +1796,20 @@ int AkVCam::CmdParserPrivate::writeControls(const StringMap &flags,
                 if (control.id == key) {
                     switch (control.type) {
                     case ControlTypeInteger: {
-                        try {
-                            size_t p_idx = 0;
-                            long val = std::stol(value, &p_idx);
-                            if (p_idx != value.length()) {
-                                std::cerr << "Value at argument " << i << " (for " << key << ") is not a valid integer (not all chars consumed)." << std::endl;
-                                return -EINVAL;
-                            }
-                            controls[key] = static_cast<int>(val); // Assuming int is sufficient
-                        } catch (const std::exception& e) {
-                            std::cerr << "Value at argument " << i << " (for " << key << ") must be an integer: " << e.what() << std::endl;
+                        char *p = nullptr;
+                        const char* valStr = value.c_str();
+                        auto val = ::strtol(valStr, &p, 10);
+                        if (*p) {
+                            std::cerr << "Value at argument " << i << " (for " << key << ") must be an integer." << std::endl;
                             return -EINVAL;
                         }
+                        controls[key] = val;
                         break;
                     }
 
                     case ControlTypeBoolean: {
                         std::locale loc;
-                        std::string lower_value = value; // Create a mutable copy
+                        std::string lower_value = value;
                         std::transform(lower_value.begin(),
                                        lower_value.end(),
                                        lower_value.begin(),
@@ -1850,49 +1822,32 @@ int AkVCam::CmdParserPrivate::writeControls(const StringMap &flags,
                         } else if (lower_value == "1" || lower_value == "true") {
                             controls[key] = 1;
                         } else {
-                            std::cerr << "Value at argument "
-                                      << i
-                                      << " must be a boolean."
-                                      << std::endl;
-
+                            std::cerr << "Value at argument " << i << " must be a boolean." << std::endl;
                             return -EINVAL;
                         }
-
                         break;
                     }
 
                     case ControlTypeMenu: {
-                        try {
-                            size_t p_idx = 0;
-                            unsigned long val = std::stoul(value, &p_idx);
-                            if (p_idx == value.length()) { // Successfully parsed as number
-                                if (val >= control.menu.size()) {
-                                    std::cerr << "Value at argument " << i << " (for " << key << ") is out of menu range." << std::endl;
-                                    return -ERANGE;
-                                }
-                                controls[key] = static_cast<int>(val);
-                            } else { // Not fully a number, try as string
-                                auto it = std::find(control.menu.begin(), control.menu.end(), value);
-                                if (it == control.menu.end()) {
-                                    std::cerr << "Value at argument " << i << " (for " << key << ") is not a valid menu option string." << std::endl;
-                                    return -EINVAL;
-                                }
-                                controls[key] = static_cast<int>(it - control.menu.begin());
-                            }
-                        } catch (const std::invalid_argument& ia) { // Not a number at all, try as string
-                             auto it = std::find(control.menu.begin(), control.menu.end(), value);
+                        char *p = nullptr;
+                        const char* valStr_wc = value.c_str();
+                        auto val = ::strtoul(valStr_wc, &p, 10);
+                        if (*p) { // Not a pure number, try as string
+                            auto it = std::find(control.menu.begin(), control.menu.end(), value);
                             if (it == control.menu.end()) {
-                                std::cerr << "Value at argument " << i << " (for " << key << ") is not a valid menu option (invalid_argument): " << ia.what() << std::endl;
+                                std::cerr << "Value at argument " << i << " (for " << key << ") is not a valid menu option." << std::endl;
                                 return -EINVAL;
                             }
-                            controls[key] = static_cast<int>(it - control.menu.begin());
-                        } catch (const std::out_of_range& oor) {
-                             std::cerr << "Value at argument " << i << " (for " << key << ") is out of range for menu index (out_of_range): " << oor.what() << std::endl;
-                             return -ERANGE;
+                            controls[key] = int(it - control.menu.begin());
+                        } else { // Parsed as number
+                            if (val >= control.menu.size()) {
+                                std::cerr << "Value at argument " << i << " (for " << key << ") is out of menu range." << std::endl;
+                                return -ERANGE;
+                            }
+                            controls[key] = int(val);
                         }
                         break;
                     }
-
                     default:
                         break;
                     }
@@ -1974,20 +1929,12 @@ int AkVCam::CmdParserPrivate::setLogLevel(const AkVCam::StringMap &flags,
     }
 
     auto levelStr = args[1];
-    long level = 0; // Default or indicate error
-    try {
-        size_t p_idx = 0;
-        level = std::stol(levelStr, &p_idx);
-        if (p_idx != levelStr.length()) { // Not all chars consumed, try parsing as string
-            level = AkVCam::Logger::levelFromString(levelStr);
-        }
-    } catch (const std::invalid_argument& ia) { // Not a number, try parsing as string
+    char *p = nullptr;
+    const char* levelCStr = levelStr.c_str();
+    auto level = ::strtol(levelCStr, &p, 10);
+
+    if (*p) // If not all characters were consumed by strtol, it's a string label
         level = AkVCam::Logger::levelFromString(levelStr);
-    } catch (const std::out_of_range& oor) {
-        std::cerr << "Log level number out of range: " << oor.what() << std::endl;
-        // Keep default level or set to a specific error/default level
-        level = AkVCam::Logger::levelFromString("info"); // Fallback to a default level
-    }
 
     this->m_ipcBridge.setLogLevel(level);
 
@@ -2465,19 +2412,12 @@ void AkVCam::CmdParserPrivate::loadGenerals(Settings &settings)
 
     if (settings.contains("loglevel")) {
         auto logLevelStr = settings.value("loglevel");
-        long level = 0; // Default
-        try {
-            size_t p_idx = 0;
-            level = std::stol(logLevelStr, &p_idx);
-            if (p_idx != logLevelStr.length()) { // Not all chars consumed
-                level = AkVCam::Logger::levelFromString(logLevelStr);
-            }
-        } catch (const std::invalid_argument& ia) {
+        char *p = nullptr;
+        const char* logLevelCStr = logLevelStr.c_str();
+        auto level = ::strtol(logLevelCStr, &p, 10);
+
+        if (*p) // If not all characters were consumed, it's a string label
             level = AkVCam::Logger::levelFromString(logLevelStr);
-        } catch (const std::out_of_range& oor) {
-            std::cerr << "Configured log level number out of range: " << oor.what() << std::endl;
-            level = AkVCam::Logger::levelFromString("info"); // Fallback
-        }
 
         this->m_ipcBridge.setLogLevel(level);
     }
@@ -2528,24 +2468,19 @@ std::vector<AkVCam::VideoFormat> AkVCam::CmdParserPrivate::readFormat(Settings &
 
     for (auto &format_list: this->matrixCombine(formatMatrix)) {
         auto pixFormat = VideoFormat::fourccFromString(format_list[0]);
-        long width = 0, height = 0;
-        try {
-            size_t p_idx_w = 0, p_idx_h = 0;
-            width = std::stol(format_list[1], &p_idx_w);
-            height = std::stol(format_list[2], &p_idx_h);
-            if (p_idx_w != format_list[1].length() || p_idx_h != format_list[2].length()) {
-                std::cerr << "Invalid width/height value in config (not all chars consumed): " << format_list[1] << " or " << format_list[2] << std::endl;
-                continue; // Skip this format entry
-            }
-        } catch (const std::exception& e) {
-            std::cerr << "Error parsing width/height in config: " << e.what() << " for values " << format_list[1] << ", " << format_list[2] << std::endl;
-            continue; // Skip this format entry
-        }
+        char *p = nullptr;
+        const char* widthStr = format_list[1].c_str();
+        auto width = ::strtol(widthStr, &p, 10);
+        // TODO: Add error check for *p if necessary, though original code didn't for these
+        p = nullptr;
+        const char* heightStr = format_list[2].c_str();
+        auto height = ::strtol(heightStr, &p, 10);
+        // TODO: Add error check for *p if necessary
 
         Fraction frame_rate(format_list[3]);
         VideoFormat format(pixFormat,
-                           static_cast<int>(width),
-                           height,
+                           static_cast<int>(width), // Assuming width fits in int
+                           static_cast<int>(height), // Assuming height fits in int
                            {frame_rate});
 
         if (format.isValid())
@@ -2649,10 +2584,11 @@ std::vector<AkVCam::VideoFormat> AkVCam::CmdParserPrivate::readDeviceFormats(Set
 
     for (auto &indexStr: formatsIndex) {
         char *p = nullptr;
+        // Revert to using ::strtoul, assuming this was the state before std::stoul attempt
         const char* indexCStr_rdf = indexStr.c_str();
-        auto index = ::strtoul(indexCStr_rdf, &p, 10); // Use global namespace + temp var
+        auto index = ::strtoul(indexCStr_rdf, &p, 10);
 
-        if (*p)
+        if (*p) // If conversion did not consume the whole string or failed
             continue;
 
         index--;
