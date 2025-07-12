@@ -41,7 +41,7 @@
 #define NOMINMAX
 #endif
 #include <dshow.h>
-#include "PlatformUtils/src/utils.h"
+#include "dshow/PlatformUtils/src/utils.h" // Corrected path for stringFromWSTR
 #pragma comment(lib, "strmiids")
 #elif defined(__linux__)
 #include <fcntl.h>
